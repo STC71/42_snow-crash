@@ -136,6 +136,6 @@ Los desafíos adicionales para subir la nota son los subiguientes niveles:
 
 <div align="center">
 
-[⬅️ Volver al repositorio principal](../../README.md)
+[⬅️ Volver al repositorio principal](https://github.com/STC71/42_outer_core)
 
 </div>
