@@ -1,141 +1,289 @@
-# ❄️ Snow Crash - Cyber Security Project
+# SnowCrash
 
-**Versión**: 3.2  
-**Tipo de Proyecto**: Introducción a Ciberseguridad  
-**Entorno**: Máquina Virtual de 64-bits (ISO proporcionada)  
+<br><br>
 
-> Una modesta pero profunda introducción al amplio mundo de la ciberseguridad. Un entorno donde no hay margen de error y deberás descubrir diversas vulnerabilidades del sistema.
+<img width="1536" height="1024" alt="snowcrash42" src="https://github.com/user-attachments/assets/b37a6ea2-af3a-4c33-80c3-55ff9507dd42" />
 
----
+<br><br>
 
-## 📋 Tabla de Contenidos
+## Descripción
 
-1. [Descripción General](#-descripción-general)
-2. [Objetivos del Proyecto](#-objetivos-del-proyecto)
-3. [Instrucciones Generales](#-instrucciones-generales)
-4. [Dinámica de Juego (CTF)](#-dinámica-de-juego-ctf)
-5. [Parte Obligatoria](#-parte-obligatoria)
-6. [Estructura de Carpetas](#-estructura-de-carpetas)
-7. [Parte Bonus](#-parte-bonus)
+SnowCrash es un proyecto de tipo CTF (Capture The Flag) centrado en la seguridad informática. Se proporciona una OVA de Linux (x64, Ubuntu) y el objetivo es encontrar las distintas banderas.
 
----
+El repositorio actual contiene 11 niveles, del `level00` al `level10`:
 
-## 🎯 Descripción General
+- Los niveles `level00` a `level10` son obligatorios.
+- `level10` es el boss fight final del recorrido mandatory.
+- La parte bonus está formada por `bonus01` a `bonus05` y se investiga después
+	del mandatory.
 
-Como desarrollador, el software creado será utilizado por muchas personas y cualquier debilidad las expondrá al peligro. Es un deber entender las diferentes técnicas de explotación de estas debilidades para poder detectarlas y evitarlas. 
+El proyecto permite estudiar problemas de seguridad de diferentes tipos, como:
 
-**Snow Crash** es una serie de desafíos prácticos que buscan iniciar al estudiante en la ciberseguridad a través de varios campos, proporcionando nuevas perspectivas sobre la informática general a través de un formato *Capture The Flag* (CTF).
+- Código mal escrito o sin protección.
+- Comunicaciones de red sin protección.
+- Trabajos automatizados mal gestionados en las máquinas.
 
----
+La tabla de credenciales recuperadas está disponible en
+[flags.md](flags.md).
 
-## 💡 Objetivos del Proyecto
+## Encontrar y validar las banderas
 
-- ✅ Descubrir problemas de seguridad y vulnerabilidades en sistemas Linux (escalada de privilegios, inyecciones, etc.).
-- ✅ Desarrollar pensamiento lógico avanzado e independiente; superar callejones sin salida buscando la solución por iniciativa propia.
-- ✅ Ganar una perspectiva crítica sobre cómo escribir y estructurar código de manera segura.
+En el sistema hay dos tipos principales de cuentas de usuario:
 
-> *Nota: "Tú debes ser la única llave de las puertas cerradas que encuentres."*
+- `levelXX`: cuenta correspondiente a los niveles mandatory. `XX` representa el
+	número del nivel, por ejemplo `level00`, `level01` o `level10`.
+- `flagXX`: cuenta asociada a cada nivel mandatory, por ejemplo `flag00`,
+	`flag01` o `flag10`. En la parte bonus, las cuentas usan nombres como
+	`flagbonus01`.
 
----
+El objetivo de cada nivel mandatory es obtener la flag protegida del usuario
+asociado. En esta OVA, cada flag permite conectarse por SSH al siguiente nivel;
+la de `level10` cierra el recorrido mandatory y no tiene un nivel mandatory
+siguiente. El método cambia en cada ejercicio: puede ser un binario `setuid`,
+un servicio, una plantilla, un protocolo o un sandbox.
 
-## ⚙️ Instrucciones Generales
+Las guías de `resources/` documentan el recorrido real de cada nivel. Los
+archivos `flag` de los niveles mandatory contienen las credenciales
+recuperadas; los bonus siguen pendientes de resolución y sus flags se
+completarán cuando se obtengan.
 
-Para realizar el proyecto se necesita una máquina virtual de **64 bits** y la **ISO** oficial provista.
-Una vez iniciada la VM y con la configuración correcta de red, el sistema mostrará un prompt presentando un *ASCII Art* ("Good luck & Have fun") seguido por la dirección IP de la máquina:
+## Recursos
 
-```
-192.168.16.128
-SnowCrash login: _
-```
-*(Si no se ve la IP, se puede usar el comando `ifconfig` tras el inicio de sesión).*
+Los recursos del proyecto incluyen:
 
-### Acceso Inicial
+- El tema en inglés y en francés.
+- La imagen OVA de Linux.
+- El vídeo del proyecto disponible en Intra y en formato RAW, sin necesidad de iniciar sesión.
 
-El primer acceso al entorno se realiza con las siguientes credenciales:
-- **Usuario**: `level00`
-- **Contraseña**: `level00`
+## Comenzar el proyecto
 
-Se recomienda altamente acceder a través de una conexión remota **SSH** en el **puerto 4242**:
-```bash
-ssh level00@<ip_de_la_vm> -p 4242
-```
+Para iniciar el proyecto, hay que abrir la OVA en una máquina virtual, como VMware o VirtualBox.
 
----
+Si se utiliza VirtualBox, no es necesario configurar la red en modo puente, con el modo NAT por defecto es suficiente.
 
-## 🎮 Dinámica de Juego (CTF)
+Tras haber importado la OVA, la dejamos arrancada en su pantalla de login. No
+es necesario iniciar sesión en la consola de la máquina virtual: todos los
+niveles se resuelven desde el equipo anfitrión mediante SSH.
 
-La progresión se basa en un esquema de niveles (`levelXX`). 
+En nuestro caso, observamos que la IP está configurada:
 
-1. **El Objetivo Principal:** Estando logueado en un nivel dado, el objetivo es conseguir la contraseña de la cuenta del usuario "objetivo" (`flagXX`), el cual corresponde al número del nivel actual.
-2. **Conseguir el Token:** Una vez se ha logrado iniciar sesión o ejecutar un comando como la cuenta `flagXX`, se debe ejecutar el binario `getflag`. Al hacerlo, proporcionará el **token/password** para poder entrar al **siguiente** nivel (ej. `level01`).
-3. **Escalada indirecta:** Si no se puede acceder de forma directa con `su flagXX`, habrá que buscar un método alternativo como una inyección de comandos en un binario o script vulnerable que dependa de los permisos locales del sistema.
-
-### Ejemplo de sesión
-
-```bash
-level00@SnowCrash:~$ su flag00
-Password:
-Don't forget to launch getflag!
-flag00@SnowCrash:~$ getflag
-Check flag.Here is your token: ?????????????????
-flag00@SnowCrash:~$ su level01
-Password:
-level01@SnowCrash:~$
-```
-
-⚠️ **Advertencias importantes:**
-- Utilizar *fuerza bruta* sobre las contraseñas SSH o tokens está **prohibido**. No servirá, pues se exige explicar detalladamente todas las soluciones durante la evaluación.
-- Los directorios `/tmp/` y `/var/tmp/` tienen derechos limitados y se vaciarán de vez en cuando. Se recomienda no trabajar directamente en la máquina o llevar el control local.
-- Sugerencia útil: familiarizarse con utilidades como `scp` para enviar y recibir archivos de la máquina virtual.
-
----
-
-## ⭐ Parte Obligatoria
-
-En la parte obligatoria se deben resolver y superar un total de **10** niveles consecutivos, comenzando por el 0 y llegando hasta el 9:
-
-- `level00`, `level01`, `level02`, `level03`, `level04`, `level05`, `level06`, `level07`, `level08`, `level09`
-
-Todo debe estar preparado para ser demostrado ante la corrección de pares, siendo capaz de justificar detalladamente cómo cada técnica fue descubierta y explotada.
-
----
-
-## 📁 Estructura de Carpetas
-
-Todo el material utilizado para resolver el proyecto debe entregarse subido en el repositorio con un esquema muy estricto por cada nivel.
-No se debe incluir **ningún** archivo binario o material nativo extraído de la ISO en el repositorio, pero en la evaluación se pueden volver a descargar si fueran necesarios.
-
-Ejemplo general de la estructura obligatoria:
 ```text
-.
-├── level00/
-│   ├── flag                    # El token (puede estar vacío pero requiere explicación si lo está)
-│   └── resources/              # Todo material externo/scripts necesarios para probar la solución
-│       └── scripts_extras.py
-├── level01/
-│   ├── flag
-│   └── resources/
-...
+enp0s3: 10.0.2.15
+```
+<br><br>
+
+<img width="864" height="620" alt="image0" src="https://github.com/user-attachments/assets/35958d45-bae7-4822-9f2a-810313ff377f" />
+
+<br><br>
+
+Seguidamente en la sección Display / Screen, configuramos la Memoria de Video en 16 MB
+
+<br><br>
+
+<img width="1228" height="887" alt="image1" src="https://github.com/user-attachments/assets/dbdad8a1-8bf2-4fc6-be78-55a8e8701b7c" />
+
+<br><br>
+
+Ahora accedemos en la configuración de la OVA en la zona Red / Adaptador 1
+
+<br><br>
+
+<img width="1766" height="1326" alt="image2" src="https://github.com/user-attachments/assets/c34457e4-1019-4972-98e1-6a5e665d7dd3" />
+
+<br><br>
+
+hacemos click en Reenvío de puertos y dejamos esta configuración:
+
+<br><br>
+
+<img width="1596" height="1076" alt="image3" src="https://github.com/user-attachments/assets/67ec0fa3-3506-4bc2-a43d-83d523bd1d1f" />
+
+<br><br>
+
+Notar que hemos configurado en el Host Anfitrión el puerto 2424, ya que el 4242 (recomendado) en 42 Málaga se haya ocupado por otros servicios.
+
+Según el subject del proyecto Snow-Crash de 42, se debe acceder a la máquina mediante SSH usando el puerto `4242` (nosotros gestionaremos el 2424). 
+
+Ahora nos conectaremos vía SSH desde una terminal del equipo anfitrión con:
+
+```bash
+ssh level00@127.0.0.1 -p 2424
+
+o
+
+ssh level00@localhost -p 2424
+
 ```
 
----
+<img width="1030" height="710" alt="image4" src="https://github.com/user-attachments/assets/7b918ef7-3999-4c6e-88c0-ad96945002fd" />
 
-## 🚀 Parte Bonus
 
-> ⚠️ Los niveles bonus **sólo** se tendrán en consideración si la parte obligatoria está valorada como **PERFECTA**. (Significa que está 100% acabada y su comportamiento no tiene fallos, malentendidos ni dudas técnicas).
 
-Los desafíos adicionales para subir la nota son los subiguientes niveles:
 
-- `level10`
-- `level11`
-- `level12`
-- `level13`
-- `level14`
+<br><br>
+<br><br>
+<br><br>
 
----
 
-<div align="center">
+## Estructura del proyecto
 
-[⬅️ Volver al repositorio principal](https://github.com/STC71/42_outer_core)
+El repositorio contiene un directorio para cada nivel, con el formato
+`levelXX`. En esta versión del proyecto están disponibles los niveles
+`level00` a `level10`, además de las carpetas reservadas para los bonus:
 
-</div>
+```text
+level00/
+level01/
+level02/
+level03/
+level04/
+level05/
+level06/
+level07/
+level08/
+level09/
+level10/
+bonus01/
+bonus02/
+bonus03/
+bonus04/
+bonus05/
+```
+
+Cada nivel mandatory y cada bonus contiene:
+
+```text
+levelXX/ o bonusNN/
+├── flag
+└── resources/
+```
+
+El archivo `flag` contiene la credencial o el token obtenido al resolver el
+nivel. La explicación del proceso no se guarda dentro de `flag`, sino en el
+Markdown correspondiente de `resources`, cuando esa documentación ya está
+disponible:
+
+```text
+level00/resources/level00.md
+level01/resources/level01.md
+level02/resources/level02.md
+level03/resources/level03.md
+level04/resources/level04.md
+level05/resources/level05.md
+level06/resources/level06.md
+level07/resources/level07.md
+level08/resources/level08.md
+level09/resources/level09.md
+level10/resources/level10.md
+bonus01/resources/bonus01.md
+bonus02/resources/bonus02.md
+bonus03/resources/bonus03.md
+bonus04/resources/bonus04.md
+bonus05/resources/bonus05.md
+```
+
+El directorio `resources` también puede incluir archivos auxiliares necesarios
+para reproducir el ejercicio. Todos ellos deben estar descritos en su guía
+correspondiente. Por ejemplo:
+
+```text
+level01/resources/
+└── level01.md
+
+level02/resources/
+└── level02.md
+
+level03/resources/
+├── build-extract.cmake
+├── build-recon.cmake
+└── level03.md
+
+level04/resources/
+└── level04.md
+
+level05/resources/
+├── level05.md
+└── metaverse-exploit.wat
+
+level06/resources/
+├── level06.md
+└── raven-payload.conf
+
+level07/resources/
+├── level07.md
+└── sandbox-escape.expr
+
+level08/resources/
+├── blacksun_client.py
+└── level08.md
+
+level09/resources/
+└── level09.md
+
+level10/resources/
+├── enzo-injection.wat
+├── find_injection_token.py
+└── level10.md
+
+bonus01/resources/
+└── bonus01.md
+
+bonus02/resources/
+└── bonus02.md
+
+bonus03/resources/
+└── bonus03.md
+
+bonus04/resources/
+└── bonus04.md
+
+bonus05/resources/
+└── bonus05.md
+```
+
+Los archivos auxiliares tienen estas funciones:
+
+- `build-recon.cmake` realiza el reconocimiento inicial del directorio de
+	`flag03`.
+- `build-extract.cmake` extrae la credencial de `level03` mediante el runner
+	de CMake ejecutado como `flag03`.
+- `metaverse-exploit.wat` contiene el módulo WebAssembly textual utilizado para
+	leer temporalmente `/home/flag05/.flag`.
+- `raven-payload.conf` contiene la configuración temporal utilizada para
+	explotar la evaluación de expresiones regulares Perl en `level06`.
+- `sandbox-escape.expr` contiene la expresión Python utilizada para escapar del
+	validador restringido de `level07`.
+- `blacksun_client.py` implementa el cliente del protocolo Unix utilizado para
+	saltar la autenticación de `level08`.
+- `find_injection_token.py` calcula un campo con firma válida para seleccionar
+	el handler vulnerable de `level10`.
+- `enzo-injection.wat` emite el token manipulado que consume `validate.js`.
+
+## Resumen de los ejercicios
+
+- **level00:** escalada de privilegios mediante un binario con permisos
+	`setuid` y extracción de una credencial expuesta dentro del ejecutable.
+- **level01:** exposición de credenciales en los argumentos de un servicio
+	`systemd` ejecutado con los privilegios de `flag01`.
+- **level02:** fuga de una credencial mediante un archivo temporal persistente
+	dejado por un servicio de entrega.
+- **level03:** escalada de privilegios mediante un servicio `systemd` que
+	ejecuta un archivo CMake escribible por el grupo del usuario.
+- **level04:** inyección de comandos en una plantilla `m4` procesada con los
+	privilegios de `flag04`.
+- **level05:** reemplazo temporal de un módulo WebAssembly escribible y
+	ejecución privilegiada mediante un servicio periódico.
+- **level06:** ejecución de código Perl dentro de una expresión regular
+	controlada mediante `use re 'eval'`.
+- **level07:** escape de un sandbox Python mediante introspección de objetos y
+	acceso a módulos ya cargados.
+- **level08:** bypass de autenticación en un protocolo binario por un fallo de
+	control de estados en un socket Unix.
+- **level09:** validación de un token mediante un binario `setuid` y una cadena
+	válida expuesta en sus datos legibles.
+- **level10:** boss fight que combina la reconstrucción de un token WebAssembly
+	con una inyección de comandos en un handler JavaScript.
+
+Los bonus todavía no se han resuelto. Sus directorios y archivos `flag` están
+preparados, pero las credenciales y las explicaciones se completarán al
+investigar cada ejercicio.

