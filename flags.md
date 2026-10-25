@@ -20,15 +20,14 @@ Tabla de credenciales y flags recuperadas durante la resolución de la OVA actua
 > `Level10` es el boss fight final disponible en esta OVA y su valor es la
 > última flag del recorrido mandatory.
 
-## Bonus pendientes
+## Bonus
 
-Las carpetas bonus ya tienen la estructura requerida, pero todavía no se han
-recuperado sus credenciales:
+Credenciales de entrada y flags recuperadas para los niveles bonus:
 
 | Bonus / Cuenta | Contraseña de entrada | Flag obtenida |
 | --- | --- | --- |
-| Bonus01 | bonus01 | bonus01 |
-| Bonus02 | Pendiente | Pendiente |
-| Bonus03 | Pendiente | Pendiente |
-| Bonus04 | Pendiente | Pendiente |
-| Bonus05 | Pendiente | Pendiente |
+| Bonus01 | `bonus01` | `fa6v5ateaw21peobuub8ipe6s` |
+| Bonus02 | `fa6v5ateaw21peobuub8ipe6s` | `cfiioecfib9aobid1abfa0ci8` |
+| Bonus03 | `cfiioecfib9aobid1abfa0ci8` | `mof3b3iud5c3p35bsv9aua0bj` |
+| Bonus04 | `mof3b3iud5c3p35bsv9aua0bj` | `oo0eoaiia5ei8oo9xasah2ihu` |
+| Bonus05 | `oo0eoaiia5ei8oo9xasah2ihu` | `7oa2eihe3ohohzee5gob2aing` |

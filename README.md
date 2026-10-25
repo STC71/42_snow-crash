@@ -284,6 +284,13 @@ Los archivos auxiliares tienen estas funciones:
 - **level10:** boss fight que combina la reconstrucción de un token WebAssembly
 	con una inyección de comandos en un handler JavaScript.
 
-Los bonus todavía no se han resuelto. Sus directorios y archivos `flag` están
-preparados, pero las credenciales y las explicaciones se completarán al
-investigar cada ejercicio.
+
+- **bonus01:** lectura de una flag mediante un protocolo de memoria compartida expuesto por un daemon ejecutado como `flagbonus01`.
+- **bonus02:** lectura de un fichero protegido mediante un binario con la
+	capability Linux `cap_dac_read_search`.
+- **bonus03:** abuso de un daemon `inotify` que procesa manifiestos en un
+	directorio spool escribible por el grupo del usuario.
+- **bonus04:** inyección de comandos a través de una configuración YAML
+	escribible por grupo y procesada periódicamente por un servicio privilegiado.
+- **bonus05:** carga de un módulo de kernel controlado por el atacante
+	mediante un binario con la capability Linux `cap_sys_module`.
