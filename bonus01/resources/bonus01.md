@@ -223,13 +223,15 @@ tallando (carve) el ELF del fichero en bruto.
 
 ### 5.1. Localizar el disco en el host
 
-Abrir una terminal **en el host** (prompt tipo `sternero@c3r10s1`, no la
+Abrir una terminal **en el host** (prompt tipo `login42@cxrxxsxx`, no la
 sesión SSH de `bonus01`):
 
 ```bash
-find /home/sternero/sgoinfre -iname '*SnowCrash*' 2>/dev/null | head -20
-find /sgoinfre/students/sternero -iname '*SnowCrash*' 2>/dev/null | head -20
+find /home/login42/sgoinfre -iname '*SnowCrash*' 2>/dev/null | head -20
+find /sgoinfre/students/login42 -iname '*SnowCrash*' 2>/dev/null | head -20
 ```
+En las rutas del ejemplo, `login42` es el nombre de usuario del anfitrión;
+sustitúyelo si tu ruta es distinta.
 
 Rutas típicas en este proyecto:
 
@@ -250,8 +252,8 @@ import mmap, os, sys
 
 # Ajusta la ruta si en tu máquina difiere
 candidates = [
-    "/home/sternero/sgoinfre/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
-    "/sgoinfre/students/sternero/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
+    "/home/login42/sgoinfre/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
+    "/sgoinfre/students/login42/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
 ]
 vdi = next((p for p in candidates if os.path.isfile(p)), None)
 if not vdi:

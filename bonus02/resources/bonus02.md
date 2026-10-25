@@ -126,6 +126,13 @@ vector está en el propio ejecutable.
 
 Aunque no hay bit setuid, el binario tiene una **capability** de Linux:
 
+Una *capability* es un permiso privilegiado concreto que se puede asignar a un
+programa, sin darle todos los privilegios de `root`. En este caso, `getcap`
+muestra qué capabilities tiene asignadas el ejecutable; `cap_dac_read_search`
+le permite leer archivos y recorrer directorios aunque los permisos normales
+del usuario se lo impidan. No lo convierte en `root`: le concede únicamente
+esa facultad.
+
 ```bash
 getcap /opt/snowcrash/bonus02/mafia
 stat /opt/snowcrash/bonus02/mafia
@@ -192,7 +199,17 @@ open, read, write, close, strerror, __fprintf_chk
 
 ### Comportamiento (análisis de `main`)
 
-Desensamblado resumido (`objdump -d`, función `main`):
+El resumen siguiente se obtiene desensamblando el ejecutable `mafia`; no se
+dispone aquí del código fuente. `objdump -d` muestra las instrucciones máquina
+traducidas a ensamblador. Para localizar la función `main` y ver sus
+instrucciones en la OVA:
+
+```bash
+objdump -d /opt/snowcrash/bonus02/mafia | sed -n '/<main>:/,/^$/p'
+```
+
+Los pasos de abajo interpretan ese ensamblador junto con las cadenas y
+símbolos del binario:
 
 1. Si `argc != 2` → imprime `usage` en stderr y sale con código 1.
 2. `open(argv[1], O_RDONLY)` sobre la ruta indicada.

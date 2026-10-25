@@ -61,7 +61,27 @@ CIC watches everything. Even the things you think you hid.
 ```
 
 Detalle importante del `id`: el usuario pertenece al grupo **`cic_grp`**
-(`4010`). Ese grupo tiene permiso de escritura sobre el spool del daemon.
+(`4010`). El *spool* es una carpeta donde se dejan trabajos pendientes para
+que un programa los procese; aquí, el daemon `cic` vigila `/var/spool/cic`.
+Para comprobar que el grupo puede escribir en ese directorio, consulta sus
+permisos:
+
+```bash
+ls -ld /var/spool/cic
+```
+
+La salida documentada es:
+
+```text
+drwxrwsr-x  2 flagbonus03 cic_grp 4096 ... cic
+```
+
+En `drwxrwsr-x`, los permisos del grupo son `rws`: la `w` permite crear
+entradas en el directorio y la `x` permite acceder a él. El grupo propietario
+es `cic_grp`, como muestra la columna `cic_grp`; al confirmar con `id` que
+`bonus03` pertenece a ese grupo, se deduce que puede escribir en el spool. La
+`s` en la posición de ejecución del grupo es el bit **setgid** del directorio:
+hace que los archivos nuevos hereden el grupo `cic_grp`.
 
 La cuenta `flagbonus03` existe con shell nologin:
 
@@ -161,7 +181,7 @@ drwxrwsr-x  2 flagbonus03 cic_grp 4096 ... cic
 | Elemento | Significado |
 |----------|-------------|
 | `/var/spool/cic` | Spool vigilado por el daemon |
-| `drwxrwsr-x` | Sticky group (`s` en el grupo): nuevos ficheros heredan grupo `cic_grp` |
+| `drwxrwsr-x` | Bit setgid (`s` en el grupo): los nuevos ficheros heredan el grupo `cic_grp` |
 | Propietario | `flagbonus03` |
 | Grupo | `cic_grp` |
 | Escritura de grupo | `bonus03` (miembro de `cic_grp`) puede crear ficheros aquí |
@@ -187,13 +207,23 @@ el binario no es legible en la VM, se obtiene analizándolo **desde el host**.
 
 En una terminal del **anfitrión** (no dentro de SSH a la OVA):
 
+En las rutas del ejemplo, `login42` es el nombre de usuario del anfitrión;
+sustitúyelo si tu ruta es distinta.
+
+El script Python busca la imagen de disco virtual (`.vdi`) en esas rutas, la
+abre en modo de solo lectura y localiza una copia del ejecutable `cic` usando
+su ruta y cadenas reconocibles. Extrae los bytes del ELF a `/tmp/cic_bin`.
+Después, `file` identifica el archivo y `strings` muestra textos útiles para
+analizar qué hace el daemon. Este análisis se realiza en el anfitrión y es
+opcional: no hace falta para entregar un job al servicio y obtener la flag.
+
 ```bash
 python3 << 'EOF'
 import mmap, os, sys
 
 candidates = [
-    "/home/sternero/sgoinfre/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
-    "/sgoinfre/students/sternero/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
+    "/home/login42/sgoinfre/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
+    "/sgoinfre/students/login42/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
 ]
 vdi = next((p for p in candidates if os.path.isfile(p)), None)
 if not vdi:
