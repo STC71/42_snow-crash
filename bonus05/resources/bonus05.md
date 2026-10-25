@@ -32,6 +32,7 @@
 14. 📦 [Conclusión](#sec-14)
 15. 📁 [Estructura recomendada en el repositorio](#sec-15)
 16. 📚 [Para seguir aprendiendo](#sec-16)
+17. 🩹 [Errores frecuentes y qué significan](#sec-err)
 
 
 
@@ -380,6 +381,14 @@ momento de instalar el aparato, dejas una instrucción automática para el
 conserje del edificio (root): “haz una fotocopia del documento y déjala en el
 casillero del pasillo”.
 
+**Otra imagen útil:** `call_usermodehelper` es como una **fotocopiadora automática**
+en la sala de máquinas. Tú no tienes permiso para entrar al archivo, pero al
+instalar el módulo dejas programado: “en cuanto me enchufen, que la fotocopiadora
+saque una copia del documento X y la deje en el casillero del pasillo”. Quien
+pulsa el botón de la fotocopiadora es el propio edificio (root), no tu tarjeta
+de empleado.
+
+
 ### 10.1. Crear el directorio de trabajo
 
 ```bash
@@ -722,6 +731,34 @@ Si vienes de los bonus anteriores: aquí el patrón “servicio que corre como
 flagXX” se sustituye por “código que **tú** introduces en el kernel con una
 capability concreta”. El hilo común es siempre el mismo: *¿quién tiene el
 privilegio y cómo se le puede pedir que haga el trabajo por nosotros?*
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+
+---
+
+<a id="sec-err"></a>
+
+## 17. 🩹 Errores frecuentes y qué significan
+
+Cuando algo “no funciona”, casi siempre el mensaje del sistema apunta a una
+causa concreta. Esta tabla resume los síntomas más habituales de **bonus05**,
+qué suelen querer decir y el siguiente comando o acción razonable.
+
+| Síntoma | Causa probable | Qué hacer |
+|---------|----------------|-----------|
+| `open failed: -13` en `/proc/rife*` | EACCES: el callback usa tus credenciales | No lean el `.flag` como `bonus05`; usa `call_usermodehelper` en el `init`. |
+| `prepare_kernel_cred failed` | API restringida en esta OVA | Cambia de enfoque: **umh** + `cp` a `/tmp`. |
+| `finit_module: File exists` | Ya hay un módulo con ese nombre | Compila otro nombre (`rife3`, `rife4`, …). |
+| `rmmod: ERROR: ... not loaded` / sin permiso | Sin `CAP_SYS_MODULE` en la shell | No hace falta descargar el anterior; carga un módulo **nuevo**. |
+| Heredoc / `.c` corrupto al pegar | Comillas y chat rompen el fuente | Genera el `.c` con **`base64 -d`** y verifica con `head` / `wc -l`. |
+| `Makefile`: `No rule to make target 'rife4.o\\n'` | El Makefile tiene un `\n` literal | `printf 'obj-m := rife4.o\n' > Makefile` y revisa con `cat -A Makefile`. |
+| `dmesg: Operation not permitted` | Sin privilegios para el buffer del kernel | Ignorable; comprueba el resultado en `/tmp/rife_flag`. |
+| `cat /proc/rife2: Cannot allocate memory` | Módulo roto aún cargado | Usa otro nombre de módulo y otra entrada `/proc` (o solo umh sin `/proc`). |
+
+**Cómo usarla:** localiza la fila que más se parezca a lo que ves en pantalla,
+aplica la acción sugerida y, si el síntoma cambia, vuelve a consultar la tabla
+(a menudo un error se resuelve y aparece el siguiente de la lista).
 
 <p align="right"><a href="#indice">↑ Volver al índice</a></p>
 

